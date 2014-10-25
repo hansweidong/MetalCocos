@@ -26,6 +26,13 @@ THE SOFTWARE.
 #ifndef __BASE_CC_PLATFORM_CONFIG_H__
 #define __BASE_CC_PLATFORM_CONFIG_H__
 
+#define CC_PLATFORM_IOS_GL      0
+#if CC_PLATFORM_IOS_GL
+#define CC_PLATFORM_IOS_METAL   0
+#else
+#define CC_PLATFORM_IOS_METAL   1
+#endif
+
 /**
   Config of cocos2d-x project, per target platform.
   

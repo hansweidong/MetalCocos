@@ -25,6 +25,7 @@
 #import "AppController.h"
 #import "cocos2d.h"
 #import "platform/ios/CCEAGLView-ios.h"
+#import "platform/ios/CCMetalView-ios.h"
 #import "AppDelegate.h"
 #import "RootViewController.h"
 
@@ -47,6 +48,7 @@ static AppDelegate s_sharedApplication;
     // Add the view controller's view to the window and display.
     window = [[UIWindow alloc] initWithFrame: [[UIScreen mainScreen] bounds]];
     
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglView = [CCEAGLView viewWithFrame: [window bounds]
                                          pixelFormat: (NSString*)cocos2d::GLViewImpl::_pixelFormat
                                          depthFormat: cocos2d::GLViewImpl::_depthFormat
@@ -54,6 +56,14 @@ static AppDelegate s_sharedApplication;
                                          sharegroup: nil
                                       multiSampling: NO
                                     numberOfSamples: 0];
+#else
+    CCMetalView *eaglView = [CCMetalView viewWithFrame: [window bounds]
+                                         pixelFormat: (NSString*)cocos2d::GLViewImpl::_pixelFormat
+                                         depthFormat: cocos2d::GLViewImpl::_depthFormat
+                                  preserveBackbuffer: NO
+                                       multiSampling: NO
+                                     numberOfSamples: 0];
+#endif
     
     
     // Use RootViewController manage CCEAGLView

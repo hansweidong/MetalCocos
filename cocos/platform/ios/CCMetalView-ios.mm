@@ -63,9 +63,9 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 #include "platform/CCPlatformConfig.h"
 #if CC_TARGET_PLATFORM == CC_PLATFORM_IOS
-#if CC_PLATFORM_IOS_GL
+#if CC_PLATFORM_IOS_METAL
 
-#import "CCEAGLView-ios.h"
+#import "CCMetalView-ios.h"
 
 #import <QuartzCore/QuartzCore.h>
 
@@ -81,16 +81,14 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 #define IOS_MAX_TOUCHES_COUNT     10
 
-@interface CCEAGLView (Private)
-- (BOOL) setupSurfaceWithSharegroup:(EAGLSharegroup*)sharegroup;
+@interface CCMetalView (Private)
 - (unsigned int) convertPixelFormat:(NSString*) pixelFormat;
 @end
 
-@implementation CCEAGLView
+@implementation CCMetalView
 
 @synthesize surfaceSize=size_;
 @synthesize pixelFormat=pixelformat_, depthFormat=depthFormat_;
-@synthesize context=context_;
 @synthesize multiSampling=multiSampling_;
 @synthesize isKeyboardShown=isKeyboardShown_;
 @synthesize keyboardShowNotification = keyboardShowNotification_;
@@ -111,25 +109,20 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 + (id) viewWithFrame:(CGRect)frame pixelFormat:(NSString*)format depthFormat:(GLuint)depth
 {
-    return [[[self alloc] initWithFrame:frame pixelFormat:format depthFormat:depth preserveBackbuffer:NO sharegroup:nil multiSampling:NO numberOfSamples:0] autorelease];
-}
-
-+ (id) viewWithFrame:(CGRect)frame pixelFormat:(NSString*)format depthFormat:(GLuint)depth preserveBackbuffer:(BOOL)retained sharegroup:(EAGLSharegroup*)sharegroup multiSampling:(BOOL)multisampling numberOfSamples:(unsigned int)samples
-{
-    return [[[self alloc]initWithFrame:frame pixelFormat:format depthFormat:depth preserveBackbuffer:retained sharegroup:sharegroup multiSampling:multisampling numberOfSamples:samples] autorelease];
+    return [[[self alloc] initWithFrame:frame pixelFormat:format depthFormat:depth preserveBackbuffer:NO multiSampling:NO numberOfSamples:0] autorelease];
 }
 
 - (id) initWithFrame:(CGRect)frame
 {
-    return [self initWithFrame:frame pixelFormat:kEAGLColorFormatRGB565 depthFormat:0 preserveBackbuffer:NO sharegroup:nil multiSampling:NO numberOfSamples:0];
+    return [self initWithFrame:frame pixelFormat:kEAGLColorFormatRGB565 depthFormat:0 preserveBackbuffer:NO multiSampling:NO numberOfSamples:0];
 }
 
 - (id) initWithFrame:(CGRect)frame pixelFormat:(NSString*)format 
 {
-    return [self initWithFrame:frame pixelFormat:format depthFormat:0 preserveBackbuffer:NO sharegroup:nil multiSampling:NO numberOfSamples:0];
+    return [self initWithFrame:frame pixelFormat:format depthFormat:0 preserveBackbuffer:NO multiSampling:NO numberOfSamples:0];
 }
 
-- (id) initWithFrame:(CGRect)frame pixelFormat:(NSString*)format depthFormat:(GLuint)depth preserveBackbuffer:(BOOL)retained sharegroup:(EAGLSharegroup*)sharegroup multiSampling:(BOOL)sampling numberOfSamples:(unsigned int)nSamples;
+- (id) initWithFrame:(CGRect)frame pixelFormat:(NSString*)format depthFormat:(GLuint)depth preserveBackbuffer:(BOOL)retained multiSampling:(BOOL)sampling numberOfSamples:(unsigned int)nSamples;
 {
     if((self = [super initWithFrame:frame]))
     {
@@ -140,7 +133,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
         requestedSamples_ = nSamples;
         preserveBackbuffer_ = retained;
         markedText_ = nil;
-        if( ! [self setupSurfaceWithSharegroup:sharegroup] ) {
+        if( ! [self setupSurfaceWithSharegroup:nil] ) {
             [self release];
             return nil;
         }
@@ -219,7 +212,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
                                     [NSNumber numberWithBool:preserveBackbuffer_], kEAGLDrawablePropertyRetainedBacking,
                                     pixelformat_, kEAGLDrawablePropertyColorFormat, nil];
     
-    
+#if 0
     renderer_ = [[CCES2Renderer alloc] initWithDepthFormat:depthFormat_
                                          withPixelFormat:[self convertPixelFormat:pixelformat_]
                                           withSharegroup:sharegroup
@@ -231,7 +224,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
         return NO;
     
     context_ = [renderer_ context];
-    
+#endif
     #if GL_EXT_discard_framebuffer == 1
         discardFramebufferSupported_ = YES;
     #else
@@ -246,15 +239,19 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 - (void) dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self]; // remove keyboard notification
+#if 0
     [renderer_ release];
+#endif
     self.keyboardShowNotification = nullptr; // implicit release
     [super dealloc];
 }
 
 - (void) layoutSubviews
 {
+#if 0
     [renderer_ resizeFromLayer:(CAEAGLLayer*)self.layer];
     size_ = [renderer_ backingSize];
+#endif
 
     // Issue #914 #924
 //     Director *director = [Director sharedDirector];
@@ -271,63 +268,6 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 - (void) swapBuffers
 {
-    // IMPORTANT:
-    // - preconditions
-    //    -> context_ MUST be the OpenGL context
-    //    -> renderbuffer_ must be the the RENDER BUFFER
-
-#ifdef __IPHONE_4_0
-    
-    if (multiSampling_)
-    {
-        /* Resolve from msaaFramebuffer to resolveFramebuffer */
-        //glDisable(GL_SCISSOR_TEST);     
-        glBindFramebuffer(GL_READ_FRAMEBUFFER_APPLE, [renderer_ msaaFrameBuffer]);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER_APPLE, [renderer_ defaultFrameBuffer]);
-        glResolveMultisampleFramebufferAPPLE();
-    }
-    
-    if(discardFramebufferSupported_)
-    {    
-        if (multiSampling_)
-        {
-            if (depthFormat_)
-            {
-                GLenum attachments[] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT};
-                glDiscardFramebufferEXT(GL_READ_FRAMEBUFFER_APPLE, 2, attachments);
-            }
-            else
-            {
-                GLenum attachments[] = {GL_COLOR_ATTACHMENT0};
-                glDiscardFramebufferEXT(GL_READ_FRAMEBUFFER_APPLE, 1, attachments);
-            }
-            
-            glBindRenderbuffer(GL_RENDERBUFFER, [renderer_ colorRenderBuffer]);
-    
-        }    
-        
-        // not MSAA
-        else if (depthFormat_ ) {
-            GLenum attachments[] = { GL_DEPTH_ATTACHMENT};
-            glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, attachments);
-        }
-    }
-    
-#endif // __IPHONE_4_0
-    
-     if(![context_ presentRenderbuffer:GL_RENDERBUFFER])
-        {
-//         CCLOG(@"cocos2d: Failed to swap renderbuffer in %s\n", __FUNCTION__);
-        }
-
-#if COCOS2D_DEBUG
-    CHECK_GL_ERROR();
-#endif
-    
-    // We can safely re-bind the framebuffer here, since this will be the
-    // 1st instruction of the new main loop
-    if( multiSampling_ )
-        glBindFramebuffer(GL_FRAMEBUFFER, [renderer_ msaaFrameBuffer]);    
 }
 
 - (unsigned int) convertPixelFormat:(NSString*) pixelFormat
@@ -902,5 +842,5 @@ UIInterfaceOrientation getFixedOrientation(UIInterfaceOrientation statusBarOrien
 
 @end
 
-#endif // CC_PLATFORM_IOS_GL
+#endif // CC_PLATFORM_IOS_METAL
 #endif // CC_PLATFORM_IOS

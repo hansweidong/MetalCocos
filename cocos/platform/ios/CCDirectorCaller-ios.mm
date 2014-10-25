@@ -33,6 +33,7 @@
 
 #import "base/CCDirector.h"
 #import "CCEAGLView-ios.h"
+#import "CCMetalView-ios.h"
 
 static id s_sharedDirectorCaller;
 
@@ -106,7 +107,10 @@ static id s_sharedDirectorCaller;
 -(void) doCaller: (id) sender
 {
     cocos2d::Director* director = cocos2d::Director::getInstance();
+#if CC_PLATFORM_IOS_GL
     [EAGLContext setCurrentContext: [(CCEAGLView*)director->getOpenGLView()->getEAGLView() context]];
+#else
+#endif
     director->mainLoop();
 }
 

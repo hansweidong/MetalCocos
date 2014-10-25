@@ -29,6 +29,7 @@
 #import <UIKit/UIKit.h>
 
 #include "CCEAGLView-ios.h"
+#include "CCMetalView-ios.h"
 #include "CCDirectorCaller-ios.h"
 #include "CCGLViewImpl-ios.h"
 #include "CCSet.h"
@@ -108,7 +109,11 @@ GLViewImpl::~GLViewImpl()
 bool GLViewImpl::initWithEAGLView(void *eaglview)
 {
     _eaglview = eaglview;
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *glview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *glview = (CCMetalView*) _eaglview;
+#endif
 
     _screenSize.width = _designResolutionSize.width = [glview getWidth];
     _screenSize.height = _designResolutionSize.height = [glview getHeight];
@@ -121,6 +126,7 @@ bool GLViewImpl::initWithRect(const std::string& viewName, Rect rect, float fram
 {
     CGRect r = CGRectMake(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
     convertAttrs();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = [CCEAGLView viewWithFrame: r
                                        pixelFormat: (NSString*)_pixelFormat
                                        depthFormat: _depthFormat
@@ -128,6 +134,14 @@ bool GLViewImpl::initWithRect(const std::string& viewName, Rect rect, float fram
                                         sharegroup: nil
                                      multiSampling: NO
                                    numberOfSamples: 0];
+#else
+    CCMetalView *eaglview = [CCMetalView viewWithFrame: r
+                                         pixelFormat: (NSString*)_pixelFormat
+                                         depthFormat: _depthFormat
+                                  preserveBackbuffer: NO
+                                       multiSampling: NO
+                                     numberOfSamples: 0];
+#endif
     
     [eaglview setMultipleTouchEnabled:YES];
 
@@ -161,8 +175,11 @@ bool GLViewImpl::setContentScaleFactor(float contentScaleFactor)
 {
     CC_ASSERT(_resolutionPolicy == ResolutionPolicy::UNKNOWN); // cannot enable retina mode
     _scaleX = _scaleY = contentScaleFactor;
-
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *eaglview = (CCMetalView*) _eaglview;
+#endif
     [eaglview setNeedsLayout];
 
     return true;
@@ -170,7 +187,11 @@ bool GLViewImpl::setContentScaleFactor(float contentScaleFactor)
 
 float GLViewImpl::getContentScaleFactor() const
 {
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *eaglview = (CCMetalView*) _eaglview;
+#endif
 
     float scaleFactor = [eaglview contentScaleFactor];
 
@@ -184,7 +205,11 @@ void GLViewImpl::end()
     [CCDirectorCaller destroy];
     
     // destroy EAGLView
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *eaglview = (CCMetalView*) _eaglview;
+#endif
 
     [eaglview removeFromSuperview];
     //[eaglview release];
@@ -193,13 +218,21 @@ void GLViewImpl::end()
 
 void GLViewImpl::swapBuffers()
 {
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *eaglview = (CCMetalView*) _eaglview;
+#endif
     [eaglview swapBuffers];
 }
 
 void GLViewImpl::setIMEKeyboardState(bool open)
 {
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView*) _eaglview;
+#else
+    CCMetalView *eaglview = (CCMetalView*) _eaglview;
+#endif
 
     if (open)
     {

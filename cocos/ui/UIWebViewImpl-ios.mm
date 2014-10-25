@@ -31,6 +31,7 @@
 #include "base/CCDirector.h"
 #include "platform/CCGLView.h"
 #include "platform/ios/CCEAGLView-ios.h"
+#include "platform/ios/CCMetalView-ios.h"
 #include "platform/CCFileUtils.h"
 #include "ui/UIWebView.h"
 
@@ -111,7 +112,11 @@
     }
     if (!self.uiWebView.superview) {
         auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
         auto eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+        auto eaglview = (CCMetalView *) view->getEAGLView();
+#endif
         [eaglview addSubview:self.uiWebView];
     }
 }
@@ -325,7 +330,11 @@ void WebViewImpl::draw(cocos2d::Renderer *renderer, cocos2d::Mat4 const &transfo
         auto glView = direcrot->getOpenGLView();
         auto frameSize = glView->getFrameSize();
         
+#if CC_PLATFORM_IOS_GL
         auto scaleFactor = [static_cast<CCEAGLView *>(glView->getEAGLView()) contentScaleFactor];
+#else
+        auto scaleFactor = [static_cast<CCMetalView *>(glView->getEAGLView()) contentScaleFactor];
+#endif
 
         auto winSize = direcrot->getWinSize();
 

@@ -63,6 +63,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 #include "platform/CCPlatformConfig.h"
 #if CC_TARGET_PLATFORM == CC_PLATFORM_IOS
+#if CC_PLATFORM_IOS_GL
 
 #import <UIKit/UIKit.h>
 #import <OpenGLES/EAGL.h>
@@ -156,4 +157,5 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 -(void) doAnimationWhenAnotherEditBeClicked;
 @end
 
+#endif // CC_PLATFORM_IOS_GL
 #endif // CC_PLATFORM_IOS

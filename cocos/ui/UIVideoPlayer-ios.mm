@@ -30,6 +30,7 @@ using namespace cocos2d::experimental::ui;
 //-------------------------------------------------------------------------------------
 
 #include "platform/ios/CCEAGLView-ios.h"
+#include "platform/ios/CCMetalView-ios.h"
 #import <MediaPlayer/MediaPlayer.h>
 #include "base/CCDirector.h"
 #include "platform/CCFileUtils.h"
@@ -159,7 +160,11 @@ using namespace cocos2d::experimental::ui;
     }
     
     auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     auto eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+    auto eaglview = (CCMetalView *) view->getEAGLView();
+#endif
     [eaglview addSubview:self.moviePlayer.view];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(videoFinished:) name:MPMoviePlayerPlaybackDidFinishNotification object:self.moviePlayer];
@@ -313,7 +318,11 @@ void VideoPlayer::draw(Renderer* renderer, const Mat4 &transform, uint32_t flags
         auto directorInstance = Director::getInstance();
         auto glView = directorInstance->getOpenGLView();
         auto frameSize = glView->getFrameSize();
+#if CC_PLATFORM_IOS_GL
         auto scaleFactor = [static_cast<CCEAGLView *>(glView->getEAGLView()) contentScaleFactor];
+#else
+        auto scaleFactor = [static_cast<CCMetalView *>(glView->getEAGLView()) contentScaleFactor];
+#endif
         
         auto winSize = directorInstance->getWinSize();
         

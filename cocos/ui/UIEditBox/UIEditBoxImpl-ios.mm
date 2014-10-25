@@ -32,6 +32,7 @@
 #include "base/CCDirector.h"
 #include "2d/CCLabel.h"
 #import "platform/ios/CCEAGLView-ios.h"
+#import "platform/ios/CCMetalView-ios.h"
 
 #define getEditBoxImplIOS() ((cocos2d::ui::EditBoxImplIOS*)editBox_)
 
@@ -94,7 +95,11 @@ static const int CC_EDIT_BOX_PADDING = 5;
 -(void) doAnimationWhenKeyboardMoveWithDuration:(float)duration distance:(float)distance
 {
     auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+    CCMetalView *eaglview = (CCMetalView *) view->getEAGLView();
+#endif
 
     [eaglview doAnimationWhenKeyboardMoveWithDuration:duration distance:distance];
 }
@@ -121,7 +126,11 @@ static const int CC_EDIT_BOX_PADDING = 5;
 -(void) openKeyboard
 {
     auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+    CCMetalView *eaglview = (CCMetalView *) view->getEAGLView();
+#endif
 
     [eaglview addSubview:textField_];
     [textField_ becomeFirstResponder];
@@ -144,7 +153,11 @@ static const int CC_EDIT_BOX_PADDING = 5;
 -(void)animationSelector
 {
     auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+    CCMetalView *eaglview = (CCMetalView *) view->getEAGLView();
+#endif
 
     [eaglview doAnimationWhenAnotherEditBeClicked];
 }
@@ -155,7 +168,11 @@ static const int CC_EDIT_BOX_PADDING = 5;
     editState_ = YES;
 
     auto view = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView *) view->getEAGLView();
+#else
+    CCMetalView *eaglview = (CCMetalView *) view->getEAGLView();
+#endif
 
     if ([eaglview isKeyboardShown])
     {
@@ -557,7 +574,11 @@ void EditBoxImplIOS::setPlaceHolder(const char* pText)
 static CGPoint convertDesignCoordToScreenCoord(const Vec2& designCoord, bool bInRetinaMode)
 {
     auto glview = cocos2d::Director::getInstance()->getOpenGLView();
+#if CC_PLATFORM_IOS_GL
     CCEAGLView *eaglview = (CCEAGLView *) glview->getEAGLView();
+#else
+    CCMetalView *eaglview = (CCMetalView *) glview->getEAGLView();
+#endif
 
     float viewH = (float)[eaglview getHeight];
     
