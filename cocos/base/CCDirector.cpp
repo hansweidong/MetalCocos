@@ -381,9 +381,9 @@ void Director::setOpenGLView(GLView *openGLView)
 
         // set size
         _winSizeInPoints = _openGLView->getDesignResolutionSize();
-
+#if 0
         createStatsLabel();
-
+#endif
         if (_openGLView)
         {
             setGLDefaultValues();
@@ -1147,6 +1147,7 @@ void Director::getFPSImageData(unsigned char** datapointer, ssize_t* length)
 
 void Director::createStatsLabel()
 {
+#if defined(NEED_PORT)
     Texture2D *texture = nullptr;
     std::string fpsString = "00.0";
     std::string drawBatchString = "000";
@@ -1215,6 +1216,7 @@ void Director::createStatsLabel()
     _drawnVerticesLabel->setPosition(Vec2(0, height_spacing*2) + CC_DIRECTOR_STATS_POSITION);
     _drawnBatchesLabel->setPosition(Vec2(0, height_spacing*1) + CC_DIRECTOR_STATS_POSITION);
     _FPSLabel->setPosition(Vec2(0, height_spacing*0)+CC_DIRECTOR_STATS_POSITION);
+#endif//NEED_PORT
 }
 
 void Director::setContentScaleFactor(float scaleFactor)

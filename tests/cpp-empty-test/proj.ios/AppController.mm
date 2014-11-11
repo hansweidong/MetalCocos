@@ -58,11 +58,11 @@ static AppDelegate s_sharedApplication;
                                     numberOfSamples: 0];
 #else
     CCMetalView *eaglView = [CCMetalView viewWithFrame: [window bounds]
-                                         pixelFormat: (NSString*)cocos2d::GLViewImpl::_pixelFormat
-                                         depthFormat: cocos2d::GLViewImpl::_depthFormat
-                                  preserveBackbuffer: NO
-                                       multiSampling: NO
-                                     numberOfSamples: 0];
+                                           pixelFormat: (NSString*)cocos2d::GLViewImpl::_pixelFormat
+                                           depthFormat: cocos2d::GLViewImpl::_depthFormat
+                                    preserveBackbuffer: NO
+                                         multiSampling: NO
+                                       numberOfSamples: 0];
 #endif
     
     
