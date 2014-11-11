@@ -15,7 +15,6 @@
  */
 @interface CCMetalView : UIView <UIKeyInput, UITextInput>
 {
-
     NSString                *pixelformat_;
     GLuint                    depthFormat_;
     BOOL                    preserveBackbuffer_;
@@ -35,6 +34,7 @@
     BOOL                    isKeyboardShown_;
 }
 
+@property(nonatomic) id<MTLDevice> device;
 @property(nonatomic, readonly) UITextPosition *beginningOfDocument;
 @property(nonatomic, readonly) UITextPosition *endOfDocument;
 @property(nonatomic, assign) id<UITextInputDelegate> inputDelegate;

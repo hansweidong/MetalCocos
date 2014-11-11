@@ -75,6 +75,7 @@ static std::vector<float> s_spotLightUniformRangeInverseValues;
 
 static const char          *s_ambientLightUniformColorName = "u_AmbientLightSourceColor";
 
+#if 1
 
 MeshCommand::MeshCommand()
 : _textureID(0)
@@ -513,5 +514,9 @@ void MeshCommand::listenRendererRecreated(EventCustom* event)
 }
 
 #endif
+
+#else//CC_PLATFORM_IOS_GL
+
+#endif//CC_PLATFORM_IOS_GL
 
 NS_CC_END

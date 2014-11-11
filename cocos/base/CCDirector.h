@@ -38,6 +38,8 @@ THE SOFTWARE.
 #include "platform/CCGL.h"
 #include "platform/CCGLView.h"
 
+class MTLDevice;
+
 NS_CC_BEGIN
 
 /**
@@ -504,6 +506,11 @@ protected:
 
     // GLView will recreate stats labels to fit visible rect
     friend class GLView;
+    
+public:
+    MTLDevice*  getMetalDevice(void) const { return _pMetalDevice; }
+    void setMetalDevice(MTLDevice* pDevice) { _pMetalDevice = pDevice; }
+    MTLDevice*  _pMetalDevice;
 };
 
 /** 

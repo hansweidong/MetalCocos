@@ -45,6 +45,41 @@
 
 NS_CC_BEGIN
 
+#if CC_PLATFORM_IOS_METAL
+
+
+Renderer::Renderer(){}
+Renderer::~Renderer(){}
+
+//TODO: manage GLView inside Render itself
+void Renderer::initGLView(){}
+
+/** Adds a `RenderComamnd` into the renderer */
+void Renderer::addCommand(RenderCommand* command){}
+
+/** Adds a `RenderComamnd` into the renderer specifying a particular render queue ID */
+void Renderer::addCommand(RenderCommand* command, int renderQueue){}
+
+/** Pushes a group into the render queue */
+void Renderer::pushGroup(int renderQueueID){}
+
+/** Pops a group from the render queue */
+void Renderer::popGroup(){}
+
+/** Creates a render queue and returns its Id */
+int Renderer::createRenderQueue(){}
+
+/** Renders into the GLView all the queued `RenderCommand` objects */
+void Renderer::render(){}
+
+/** Cleans all `RenderCommand`s in the queue */
+void Renderer::clean(){}
+
+/** returns whether or not a rectangle is visible or not */
+bool Renderer::checkVisibility(const Mat4& transform, const Size& size){return false;}
+
+#else//CC_PLATFORM_IOS_METAL
+
 // helper
 static bool compareRenderCommand(RenderCommand* a, RenderCommand* b)
 {
@@ -616,6 +651,8 @@ void Renderer::drawBatchedTriangles()
         return;
     }
 
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     if (Configuration::getInstance()->supportsShareableVAO())
     {
         //Bind VAO
@@ -661,6 +698,7 @@ void Renderer::drawBatchedTriangles()
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _buffersVBO[1]);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(_indices[0]) * _filledIndex, _indices, GL_STATIC_DRAW);
     }
+#endif//CC_PLATFORM_IOS_METAL
 
     //Start drawing verties in batch
     for(const auto& cmd : _batchedCommands)
@@ -671,7 +709,10 @@ void Renderer::drawBatchedTriangles()
             //Draw quads
             if(indexToDraw > 0)
             {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
                 glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
                 _drawnBatches++;
                 _drawnVertices += indexToDraw;
 
@@ -690,11 +731,16 @@ void Renderer::drawBatchedTriangles()
     //Draw any remaining triangles
     if(indexToDraw > 0)
     {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
         glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
         _drawnBatches++;
         _drawnVertices += indexToDraw;
     }
 
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     if (Configuration::getInstance()->supportsShareableVAO())
     {
         //Unbind VAO
@@ -705,6 +751,7 @@ void Renderer::drawBatchedTriangles()
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     }
+#endif//CC_PLATFORM_IOS_METAL
 
     _batchedCommands.clear();
     _filledVertex = 0;
@@ -724,6 +771,8 @@ void Renderer::drawBatchedQuads()
         return;
     }
     
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     if (Configuration::getInstance()->supportsShareableVAO())
     {
         //Bind VAO
@@ -767,6 +816,7 @@ void Renderer::drawBatchedQuads()
         
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _quadbuffersVBO[1]);
     }
+#endif//CC_PLATFORM_IOS_METAL
     
     //Start drawing verties in batch
     for(const auto& cmd : _batchQuadCommands)
@@ -777,7 +827,10 @@ void Renderer::drawBatchedQuads()
             //Draw quads
             if(indexToDraw > 0)
             {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
                 glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
                 _drawnBatches++;
                 _drawnVertices += indexToDraw;
                 
@@ -796,11 +849,16 @@ void Renderer::drawBatchedQuads()
     //Draw any remaining quad
     if(indexToDraw > 0)
     {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
         glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
         _drawnBatches++;
         _drawnVertices += indexToDraw;
     }
     
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     if (Configuration::getInstance()->supportsShareableVAO())
     {
         //Unbind VAO
@@ -811,6 +869,7 @@ void Renderer::drawBatchedQuads()
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     }
+#endif//CC_PLATFORM_IOS_METAL
     
     _batchQuadCommands.clear();
     _numberQuads = 0;
@@ -875,5 +934,6 @@ bool Renderer::checkVisibility(const Mat4 &transform, const Size &size)
 
     return ret;
 }
+#endif//CC_PLATFORM_IOS_METAL
 
 NS_CC_END

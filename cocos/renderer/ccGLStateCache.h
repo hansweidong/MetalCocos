@@ -33,6 +33,7 @@ THE SOFTWARE.
 #include "platform/CCGL.h"
 #include "platform/CCPlatformMacros.h"
 
+
 NS_CC_BEGIN
 
 /**
@@ -151,6 +152,6 @@ void CC_DLL bindVAO(GLuint vaoId);
 
 } // Namespace GL
 NS_CC_END
-    
+
 
 #endif /* __CCGLSTATE_H__ */

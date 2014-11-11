@@ -68,6 +68,8 @@ TextureAtlas::~TextureAtlas()
     CC_SAFE_FREE(_quads);
     CC_SAFE_FREE(_indices);
 
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     glDeleteBuffers(2, _buffersVBO);
 
     if (Configuration::getInstance()->supportsShareableVAO())
@@ -75,6 +77,7 @@ TextureAtlas::~TextureAtlas()
         glDeleteVertexArrays(1, &_VAOname);
         GL::bindVAO(0);
     }
+#endif
     CC_SAFE_RELEASE(_texture);
     
 #if CC_ENABLE_CACHE_TEXTURE_DATA
@@ -256,6 +259,8 @@ void TextureAtlas::setupIndices()
 
 void TextureAtlas::setupVBOandVAO()
 {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     glGenVertexArrays(1, &_VAOname);
     GL::bindVAO(_VAOname);
 
@@ -287,6 +292,7 @@ void TextureAtlas::setupVBOandVAO()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     CHECK_GL_ERROR_DEBUG();
+#endif//CC_PLATFORM_IOS_METAL
 }
 
 void TextureAtlas::setupVBO()
@@ -606,6 +612,8 @@ void TextureAtlas::drawNumberOfQuads(ssize_t numberOfQuads, ssize_t start)
     if(!numberOfQuads)
         return;
 
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     GL::bindTexture2D(_texture->getName());
 
     if (Configuration::getInstance()->supportsShareableVAO())
@@ -687,6 +695,7 @@ void TextureAtlas::drawNumberOfQuads(ssize_t numberOfQuads, ssize_t start)
     CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1,numberOfQuads*6);
 
     CHECK_GL_ERROR_DEBUG();
+#endif//CC_PLATFORM_IOS_METAL
 }
 
 

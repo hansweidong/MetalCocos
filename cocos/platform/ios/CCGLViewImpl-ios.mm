@@ -37,7 +37,11 @@
 
 NS_CC_BEGIN
 
+#if CC_PLATFORM_IOS_METAL
+void* GLViewImpl::_pixelFormat = 0;
+#else//CC_PLATFORM_IOS_METAL
 void* GLViewImpl::_pixelFormat = kEAGLColorFormatRGB565;
+#endif//CC_PLATFORM_IOS_METAL
 int GLViewImpl::_depthFormat = GL_DEPTH_COMPONENT16;
 
 GLViewImpl* GLViewImpl::createWithEAGLView(void *eaglview)
@@ -86,6 +90,8 @@ GLViewImpl* GLViewImpl::createWithFullScreen(const std::string& viewName)
 
 void GLViewImpl::convertAttrs()
 {
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     if(_glContextAttrs.redBits==8 && _glContextAttrs.greenBits==8 && _glContextAttrs.blueBits==8 && _glContextAttrs.alphaBits==8)
     {
         _pixelFormat = kEAGLColorFormatRGBA8;
@@ -94,6 +100,7 @@ void GLViewImpl::convertAttrs()
     {
         _depthFormat = GL_DEPTH24_STENCIL8_OES;
     }
+#endif//CC_PLATFORM_IOS_METAL
 }
 
 GLViewImpl::GLViewImpl()

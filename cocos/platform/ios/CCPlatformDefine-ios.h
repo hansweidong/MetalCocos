@@ -46,6 +46,8 @@ THE SOFTWARE.
 #endif
 #endif
 
+#include "platform/ios/CCDummyGL.h"
+
 
 #endif // CC_PLATFORM_IOS
 

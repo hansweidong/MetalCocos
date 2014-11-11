@@ -158,6 +158,9 @@ bool Director::init(void)
 #if (CC_TARGET_PLATFORM != CC_PLATFORM_WINRT)
     _console = new (std::nothrow) Console;
 #endif
+    
+    _pMetalDevice = nullptr;
+    
     return true;
 }
 

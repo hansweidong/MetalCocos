@@ -77,6 +77,8 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 #import "CCES2Renderer-ios.h"
 #import "OpenGL_Internal-ios.h"
 
+#import <Metal/Metal.h>
+
 //CLASS IMPLEMENTATIONS:
 
 #define IOS_MAX_TOUCHES_COUNT     10
@@ -114,7 +116,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 - (id) initWithFrame:(CGRect)frame
 {
-    return [self initWithFrame:frame pixelFormat:kEAGLColorFormatRGB565 depthFormat:0 preserveBackbuffer:NO multiSampling:NO numberOfSamples:0];
+    return [self initWithFrame:frame pixelFormat:0 depthFormat:0 preserveBackbuffer:NO multiSampling:NO numberOfSamples:0];
 }
 
 - (id) initWithFrame:(CGRect)frame pixelFormat:(NSString*)format 
@@ -146,6 +148,9 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 		{
 			self.contentScaleFactor = [[UIScreen mainScreen] scale];
 		}
+        
+        self.device = MTLCreateSystemDefaultDevice();
+        cocos2d::Director::getInstance()->setMetalDevice((MTLDevice*)self.device);
     }
         
     return self;
@@ -156,7 +161,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     if( (self = [super initWithCoder:aDecoder]) ) {
         CAEAGLLayer*            eaglLayer = (CAEAGLLayer*)[self layer];
         
-        pixelformat_ = kEAGLColorFormatRGB565;
+       // pixelformat_ = kEAGLColorFormatRGB565;
         depthFormat_ = 0; // GL_DEPTH_COMPONENT24_OES;
         multiSampling_= NO;
         requestedSamples_ = 0;
@@ -207,12 +212,12 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 {
     CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
     
+#if defined(NEED_PORT)
     eaglLayer.opaque = YES;
     eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                     [NSNumber numberWithBool:preserveBackbuffer_], kEAGLDrawablePropertyRetainedBacking,
                                     pixelformat_, kEAGLDrawablePropertyColorFormat, nil];
     
-#if 0
     renderer_ = [[CCES2Renderer alloc] initWithDepthFormat:depthFormat_
                                          withPixelFormat:[self convertPixelFormat:pixelformat_]
                                           withSharegroup:sharegroup
@@ -224,7 +229,8 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
         return NO;
     
     context_ = [renderer_ context];
-#endif
+#else//NEED_PORT
+#endif//NEED_PORT
     #if GL_EXT_discard_framebuffer == 1
         discardFramebufferSupported_ = YES;
     #else
@@ -239,19 +245,21 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 - (void) dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self]; // remove keyboard notification
-#if 0
+#if defined(NEED_PORT)
     [renderer_ release];
-#endif
+#else//NEED_PORT
+#endif//NEED_PORT
     self.keyboardShowNotification = nullptr; // implicit release
     [super dealloc];
 }
 
 - (void) layoutSubviews
 {
-#if 0
+#if defined(NEED_PORT)
     [renderer_ resizeFromLayer:(CAEAGLLayer*)self.layer];
     size_ = [renderer_ backingSize];
-#endif
+#else//NEED_PORT
+#endif//NEED_PORT
 
     // Issue #914 #924
 //     Director *director = [Director sharedDirector];
@@ -473,6 +481,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 #pragma mark UITextInput - properties
 
+@synthesize device;
 @synthesize beginningOfDocument;
 @synthesize endOfDocument;
 @synthesize inputDelegate;

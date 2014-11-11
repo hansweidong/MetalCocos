@@ -1136,8 +1136,12 @@
 		1ABA68B11888D700007D1BB4 /* CCFontCharMap.h in Headers */ = {isa = PBXBuildFile; fileRef = 1ABA68AD1888D700007D1BB4 /* CCFontCharMap.h */; };
 		1AC0269C1914068200FA920D /* ConvertUTF.h in Headers */ = {isa = PBXBuildFile; fileRef = 1AC026991914068200FA920D /* ConvertUTF.h */; };
 		1AC0269D1914068200FA920D /* ConvertUTF.h in Headers */ = {isa = PBXBuildFile; fileRef = 1AC026991914068200FA920D /* ConvertUTF.h */; };
+		2524E6661A11CB9C0065A427 /* CCDummyGL.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25FFDF7E19FBF1D500954D21 /* CCDummyGL.cpp */; };
+		25610B1F1A052B6600178911 /* CCDummyGL.h in Headers */ = {isa = PBXBuildFile; fileRef = 25610B1E1A052B6600178911 /* CCDummyGL.h */; };
 		25FFDF7C19FBDD3E00954D21 /* CCMetalView-ios.h in Headers */ = {isa = PBXBuildFile; fileRef = 25FFDF7A19FBDD3E00954D21 /* CCMetalView-ios.h */; };
 		25FFDF7D19FBDD3E00954D21 /* CCMetalView-ios.mm in Sources */ = {isa = PBXBuildFile; fileRef = 25FFDF7B19FBDD3E00954D21 /* CCMetalView-ios.mm */; };
+		25FFDF8219FD06D000954D21 /* CCTexture2D-Metal.mm in Sources */ = {isa = PBXBuildFile; fileRef = 25FFDF8019FD06D000954D21 /* CCTexture2D-Metal.mm */; };
+		25FFDF8319FD06D000954D21 /* CCTexture2D-Metal.h in Headers */ = {isa = PBXBuildFile; fileRef = 25FFDF8119FD06D000954D21 /* CCTexture2D-Metal.h */; };
 		29031E0719BFE8D400EFA1DF /* libchipmunk.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 29031E0619BFE8D400EFA1DF /* libchipmunk.a */; };
 		29031E0919BFE8DE00EFA1DF /* libchipmunk.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 29031E0819BFE8DE00EFA1DF /* libchipmunk.a */; };
 		292DB13D19B4574100A80320 /* UIEditBox.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 292DB12F19B4574100A80320 /* UIEditBox.cpp */; };
@@ -2322,8 +2326,12 @@
 		1AD71EED180E27CF00808F54 /* CCPhysicsDebugNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CCPhysicsDebugNode.h; sourceTree = "<group>"; };
 		1AD71EEE180E27CF00808F54 /* CCPhysicsSprite.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CCPhysicsSprite.cpp; sourceTree = "<group>"; };
 		1AD71EEF180E27CF00808F54 /* CCPhysicsSprite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CCPhysicsSprite.h; sourceTree = "<group>"; };
+		25610B1E1A052B6600178911 /* CCDummyGL.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CCDummyGL.h; sourceTree = "<group>"; };
 		25FFDF7A19FBDD3E00954D21 /* CCMetalView-ios.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "CCMetalView-ios.h"; sourceTree = "<group>"; };
 		25FFDF7B19FBDD3E00954D21 /* CCMetalView-ios.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "CCMetalView-ios.mm"; sourceTree = "<group>"; };
+		25FFDF7E19FBF1D500954D21 /* CCDummyGL.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CCDummyGL.cpp; sourceTree = "<group>"; };
+		25FFDF8019FD06D000954D21 /* CCTexture2D-Metal.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = "CCTexture2D-Metal.mm"; sourceTree = "<group>"; };
+		25FFDF8119FD06D000954D21 /* CCTexture2D-Metal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "CCTexture2D-Metal.h"; sourceTree = "<group>"; };
 		29031E0619BFE8D400EFA1DF /* libchipmunk.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libchipmunk.a; path = prebuilt/mac/libchipmunk.a; sourceTree = "<group>"; };
 		29031E0819BFE8DE00EFA1DF /* libchipmunk.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libchipmunk.a; path = prebuilt/ios/libchipmunk.a; sourceTree = "<group>"; };
 		2905F9E918CF08D000240AA3 /* CocosGUI.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CocosGUI.cpp; sourceTree = "<group>"; };
@@ -4748,6 +4756,8 @@
 		500DC89819105D41007B91BF /* renderer */ = {
 			isa = PBXGroup;
 			children = (
+				25FFDF8019FD06D000954D21 /* CCTexture2D-Metal.mm */,
+				25FFDF8119FD06D000954D21 /* CCTexture2D-Metal.h */,
 				B276EF5B1988D1D500CD400F /* CCVertexIndexData.h */,
 				B276EF5C1988D1D500CD400F /* CCVertexIndexData.cpp */,
 				B276EF5D1988D1D500CD400F /* CCVertexIndexBuffer.h */,
@@ -4835,6 +4845,8 @@
 		503DD8CD1926736A00CD74DD /* ios */ = {
 			isa = PBXGroup;
 			children = (
+				25610B1E1A052B6600178911 /* CCDummyGL.h */,
+				25FFDF7E19FBF1D500954D21 /* CCDummyGL.cpp */,
 				25FFDF7A19FBDD3E00954D21 /* CCMetalView-ios.h */,
 				25FFDF7B19FBDD3E00954D21 /* CCMetalView-ios.mm */,
 				503DD8CE1926736A00CD74DD /* CCApplication-ios.h */,
@@ -5757,6 +5769,7 @@
 				3828C0DA19EB8ACA002AB57B /* once.h in Headers */,
 				1A57007C180BC5A10088DEC7 /* CCActionInstant.h in Headers */,
 				3E6176751960F89B00DE83F5 /* CCEventController.h in Headers */,
+				25610B1F1A052B6600178911 /* CCDummyGL.h in Headers */,
 				15AE18CD19AAD33D00C27E9E /* CCNode+CCBRelativePositioning.h in Headers */,
 				3828C0D619EB8ACA002AB57B /* map-util.h in Headers */,
 				50ABBE781925AB6F00A911A9 /* CCEventListenerTouch.h in Headers */,
@@ -5909,6 +5922,7 @@
 				15AE1AA219AAD40300C27E9E /* b2Body.h in Headers */,
 				15AE1C0419AAE01E00C27E9E /* CCTableView.h in Headers */,
 				50ABBEA21925AB6F00A911A9 /* CCScheduler.h in Headers */,
+				25FFDF8319FD06D000954D21 /* CCTexture2D-Metal.h in Headers */,
 				1A57020B180BCBDF0088DEC7 /* CCMotionStreak.h in Headers */,
 				15AE195219AAD35100C27E9E /* CCDecorativeDisplay.h in Headers */,
 				15AE196619AAD35100C27E9E /* CCTween.h in Headers */,
@@ -6975,6 +6989,7 @@
 				B24AA986195A675C007B4522 /* CCFastTMXLayer.cpp in Sources */,
 				1A57022E180BCC1A0088DEC7 /* CCParticleSystemQuad.cpp in Sources */,
 				50ABBD901925AB4100A911A9 /* CCGLProgramCache.cpp in Sources */,
+				25FFDF8219FD06D000954D21 /* CCTexture2D-Metal.mm in Sources */,
 				15AE197F19AAD35700C27E9E /* CCTimeLine.cpp in Sources */,
 				B29A7DD819EE1B7700872B35 /* SkeletonData.c in Sources */,
 				1A57027F180BCC900088DEC7 /* CCSprite.cpp in Sources */,
@@ -7061,6 +7076,7 @@
 				50ABBE6A1925AB6F00A911A9 /* CCEventListenerFocus.cpp in Sources */,
 				50ABBE661925AB6F00A911A9 /* CCEventListenerCustom.cpp in Sources */,
 				503DD8F81926B0DB00CD74DD /* CCIMEDispatcher.cpp in Sources */,
+				2524E6661A11CB9C0065A427 /* CCDummyGL.cpp in Sources */,
 				50ABBDB21925AB4100A911A9 /* ccShaders.cpp in Sources */,
 				50ABBD451925AB0000A911A9 /* CCVertex.cpp in Sources */,
 				50ABBEB01925AB6F00A911A9 /* CCUserDefault.cpp in Sources */,
