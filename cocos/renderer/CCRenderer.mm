@@ -43,42 +43,677 @@
 #include "2d/CCCamera.h"
 #include "2d/CCScene.h"
 
+#if CC_PLATFORM_IOS_METAL
+#import <Metal/Metal.h>
+#import <simd/simd.h>
+#include "platform/ios/CCMetalView-ios.h"
+#else//CC_PLATFORM_IOS_METAL
+#endif//CC_PLATFORM_IOS_METAL
+
+#import <GLKit/GLKMath.h>
+typedef struct {
+    GLKVector2 position;
+} __attribute__((packed)) GLKVertexData;
+
 NS_CC_BEGIN
 
 #if CC_PLATFORM_IOS_METAL
 
 
-Renderer::Renderer(){}
-Renderer::~Renderer(){}
+static const uint32_t kInFlightCommandBuffers = 1;
+struct Renderer::Impl {
+    id <MTLCommandQueue>            m_CommandQueue;
+    dispatch_semaphore_t            m_InflightSemaphore;
+    id <MTLRenderCommandEncoder>    m_RenderEncorder;
+    id <MTLCommandBuffer> commandBuffer;
+    id<MTLBuffer>       _vertexBuffer;
+    id<MTLBuffer>       _indexBuffer;
+    id<MTLBuffer>       _matrixBuffer;
+};
+
+// helper
+static bool compareRenderCommand(RenderCommand* a, RenderCommand* b)
+{
+    return a->getGlobalOrder() < b->getGlobalOrder();
+}
+
+// queue
+
+void RenderQueue::push_back(RenderCommand* command)
+{
+    float z = command->getGlobalOrder();
+    if(z < 0)
+        _queueNegZ.push_back(command);
+    else if(z > 0)
+        _queuePosZ.push_back(command);
+    else
+        _queue0.push_back(command);
+}
+
+ssize_t RenderQueue::size() const
+{
+    return _queueNegZ.size() + _queue0.size() + _queuePosZ.size();
+}
+
+void RenderQueue::sort()
+{
+    // Don't sort _queue0, it already comes sorted
+    std::sort(std::begin(_queueNegZ), std::end(_queueNegZ), compareRenderCommand);
+    std::sort(std::begin(_queuePosZ), std::end(_queuePosZ), compareRenderCommand);
+}
+
+RenderCommand* RenderQueue::operator[](ssize_t index) const
+{
+    if(index < static_cast<ssize_t>(_queueNegZ.size()))
+        return _queueNegZ[index];
+    
+    index -= _queueNegZ.size();
+    
+    if(index < static_cast<ssize_t>(_queue0.size()))
+        return _queue0[index];
+    
+    index -= _queue0.size();
+    
+    if(index < static_cast<ssize_t>(_queuePosZ.size()))
+        return _queuePosZ[index];
+    
+    CCASSERT(false, "invalid index");
+    return nullptr;
+}
+
+void RenderQueue::clear()
+{
+    _queueNegZ.clear();
+    _queue0.clear();
+    _queuePosZ.clear();
+}
+
+// helper
+static bool compareTransparentRenderCommand(RenderCommand* a, RenderCommand* b)
+{
+    return a->getGlobalOrder() > b->getGlobalOrder();
+}
+
+void TransparentRenderQueue::push_back(RenderCommand* command)
+{
+    _queueCmd.push_back(command);
+}
+
+void TransparentRenderQueue::sort()
+{
+    std::sort(std::begin(_queueCmd), std::end(_queueCmd), compareTransparentRenderCommand);
+}
+
+RenderCommand* TransparentRenderQueue::operator[](ssize_t index) const
+{
+    return _queueCmd[index];
+}
+
+void TransparentRenderQueue::clear()
+{
+    _queueCmd.clear();
+}
+
+//
+//
+//
+static const int DEFAULT_RENDER_QUEUE = 0;
+
+//
+// constructors, destructors, init
+//
+Renderer::Renderer()
+:_lastMaterialID(0)
+,_lastBatchedMeshCommand(nullptr)
+,_filledVertex(0)
+,_filledIndex(0)
+,_numberQuads(0)
+,_glViewAssigned(false)
+,_isRendering(false)
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+,_cacheTextureListener(nullptr)
+#endif
+{
+    _groupCommandManager = new (std::nothrow) GroupCommandManager();
+    
+    _commandGroupStack.push(DEFAULT_RENDER_QUEUE);
+    
+    RenderQueue defaultRenderQueue;
+    _renderGroups.push_back(defaultRenderQueue);
+    _batchedCommands.reserve(BATCH_QUADCOMMAND_RESEVER_SIZE);
+    
+    _pImpl = new Impl;
+}
+
+Renderer::~Renderer()
+{
+    [_pImpl->_vertexBuffer release];
+    [_pImpl->_indexBuffer release];
+    CC_SAFE_DELETE(_pImpl);
+    
+    _renderGroups.clear();
+    _groupCommandManager->release();
+    
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+    Director::getInstance()->getEventDispatcher()->removeEventListener(_cacheTextureListener);
+#endif
+    
+}
+
 
 //TODO: manage GLView inside Render itself
-void Renderer::initGLView(){}
+void Renderer::initGLView()
+{
+#if CC_ENABLE_CACHE_TEXTURE_DATA
+    _cacheTextureListener = EventListenerCustom::create(EVENT_RENDERER_RECREATED, [this](EventCustom* event){
+        /** listen the event that renderer was recreated on Android/WP8 */
+        this->setupBuffer();
+    });
+    
+    Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(_cacheTextureListener, -1);
+#endif
+    
+    //setup index data for quads
+    
+    for( int i=0; i < VBO_SIZE/4; i++)
+    {
+        _quadIndices[i*6+0] = (GLushort) (i*4+0);
+        _quadIndices[i*6+1] = (GLushort) (i*4+1);
+        _quadIndices[i*6+2] = (GLushort) (i*4+2);
+        _quadIndices[i*6+3] = (GLushort) (i*4+3);
+        _quadIndices[i*6+4] = (GLushort) (i*4+2);
+        _quadIndices[i*6+5] = (GLushort) (i*4+1);
+    }
+    
+    _glViewAssigned = true;
+    
+    
+    auto device = (id<MTLDevice>)Director::getInstance()->getMetalDevice();
+    _pImpl->m_CommandQueue = [device newCommandQueue];
+    _pImpl->m_InflightSemaphore = dispatch_semaphore_create(kInFlightCommandBuffers);
+    _pImpl->_indexBuffer    =  [device newBufferWithLength:(INDEX_VBO_SIZE*sizeof(GLushort)) options:0];
+    
+#if 0
+    GLKVertexData tmp[] = { { 0.0f, 0.0f }, { 100.0f, 0.0f }, { 0.0f, 100.0f }, { 100.0f, 100.0f } };
+    _pImpl->_vertexBuffer = [device newBufferWithBytes: &tmp
+                                                length: sizeof(GLKVertexData[4])
+                                               options: 0];
+#else
+    _pImpl->_vertexBuffer = [device newBufferWithLength:(VBO_SIZE*sizeof(V3F_C4B_T2F)) options:0];
+#endif
+    
+    _pImpl->_matrixBuffer = [device newBufferWithLength: sizeof(GLKMatrix4) options: 0];
+}
 
 /** Adds a `RenderComamnd` into the renderer */
-void Renderer::addCommand(RenderCommand* command){}
+void Renderer::addCommand(RenderCommand* command)
+{
+    int renderQueue =_commandGroupStack.top();
+    addCommand(command, renderQueue);
+}
 
 /** Adds a `RenderComamnd` into the renderer specifying a particular render queue ID */
-void Renderer::addCommand(RenderCommand* command, int renderQueue){}
+void Renderer::addCommand(RenderCommand* command, int renderQueue)
+{
+    CCASSERT(!_isRendering, "Cannot add command while rendering");
+    CCASSERT(renderQueue >=0, "Invalid render queue");
+    CCASSERT(command->getType() != RenderCommand::Type::UNKNOWN_COMMAND, "Invalid Command Type");
+    if (command->isTransparent())
+        _transparentRenderGroups.push_back(command);
+    else
+        _renderGroups[renderQueue].push_back(command);
+}
 
 /** Pushes a group into the render queue */
-void Renderer::pushGroup(int renderQueueID){}
+void Renderer::pushGroup(int renderQueueID)
+{
+    CCASSERT(!_isRendering, "Cannot change render queue while rendering");
+    _commandGroupStack.push(renderQueueID);
+}
 
 /** Pops a group from the render queue */
-void Renderer::popGroup(){}
+void Renderer::popGroup()
+{
+    CCASSERT(!_isRendering, "Cannot change render queue while rendering");
+    _commandGroupStack.pop();
+}
 
 /** Creates a render queue and returns its Id */
-int Renderer::createRenderQueue(){}
+int Renderer::createRenderQueue()
+{
+    RenderQueue newRenderQueue;
+    _renderGroups.push_back(newRenderQueue);
+    return (int)_renderGroups.size() - 1;
+}
 
+void Renderer::visitRenderQueue(const RenderQueue& queue)
+{
+    ssize_t size = queue.size();
+    
+    for (ssize_t index = 0; index < size; ++index)
+    {
+        auto command = queue[index];
+        auto commandType = command->getType();
+        if( RenderCommand::Type::TRIANGLES_COMMAND == commandType)
+        {
+#if defined(_NEED_PORT)
+            flush3D();
+            if(_numberQuads > 0)
+            {
+                drawBatchedQuads();
+                _lastMaterialID = 0;
+            }
+            
+            auto cmd = static_cast<TrianglesCommand*>(command);
+            //Batch Triangles
+            if( _filledVertex + cmd->getVertexCount() > VBO_SIZE || _filledIndex + cmd->getIndexCount() > INDEX_VBO_SIZE)
+            {
+                CCASSERT(cmd->getVertexCount()>= 0 && cmd->getVertexCount() < VBO_SIZE, "VBO for vertex is not big enough, please break the data down or use customized render command");
+                CCASSERT(cmd->getIndexCount()>= 0 && cmd->getIndexCount() < INDEX_VBO_SIZE, "VBO for index is not big enough, please break the data down or use customized render command");
+                //Draw batched Triangles if VBO is full
+                drawBatchedTriangles();
+            }
+            
+            _batchedCommands.push_back(cmd);
+            
+            fillVerticesAndIndices(cmd);
+#else//_NEED_PORT
+            CC_ASSERT(false);
+#endif//_NEED_PORT
+        }
+        else if ( RenderCommand::Type::QUAD_COMMAND == commandType )
+        {
+            flush3D();
+            if(_filledIndex > 0)
+            {
+#if defined(_NEED_PORT)
+                drawBatchedTriangles();
+#else//_NEED_PORT
+#endif//_NEED_PORT
+                _lastMaterialID = 0;
+            }
+            auto cmd = static_cast<QuadCommand*>(command);
+            //Batch quads
+            if( (_numberQuads + cmd->getQuadCount()) * 4 > VBO_SIZE )
+            {
+                CCASSERT(cmd->getQuadCount()>= 0 && cmd->getQuadCount() * 4 < VBO_SIZE, "VBO for vertex is not big enough, please break the data down or use customized render command");
+                //Draw batched quads if VBO is full
+                drawBatchedQuads();
+            }
+            
+            _batchQuadCommands.push_back(cmd);
+            
+            fillQuads(cmd);
+            
+        }
+        else if(RenderCommand::Type::GROUP_COMMAND == commandType)
+        {
+            flush();
+            int renderQueueID = ((GroupCommand*) command)->getRenderQueueID();
+            visitRenderQueue(_renderGroups[renderQueueID]);
+        }
+        else if(RenderCommand::Type::CUSTOM_COMMAND == commandType)
+        {
+            flush();
+            auto cmd = static_cast<CustomCommand*>(command);
+            cmd->execute();
+        }
+        else if(RenderCommand::Type::BATCH_COMMAND == commandType)
+        {
+            flush();
+            auto cmd = static_cast<BatchCommand*>(command);
+            cmd->execute();
+        }
+        else if(RenderCommand::Type::PRIMITIVE_COMMAND == commandType)
+        {
+            flush();
+            auto cmd = static_cast<PrimitiveCommand*>(command);
+            cmd->execute();
+        }
+        else if (RenderCommand::Type::MESH_COMMAND == commandType)
+        {
+#if defined(_NEED_PORT)
+            flush2D();
+            auto cmd = static_cast<MeshCommand*>(command);
+            if (_lastBatchedMeshCommand == nullptr || _lastBatchedMeshCommand->getMaterialID() != cmd->getMaterialID())
+            {
+                flush3D();
+                cmd->preBatchDraw();
+                cmd->batchDraw();
+                _lastBatchedMeshCommand = cmd;
+            }
+            else
+            {
+                cmd->batchDraw();
+            }
+#else//_NEED_PORT
+            CC_ASSERT(false);
+#endif//_NEED_PORT
+        }
+        else
+        {
+            CCLOGERROR("Unknown commands in renderQueue");
+        }
+    }
+}
+
+//static id <MTLCommandBuffer> commandBuffer = nil;
+static bool isdraw = false;
 /** Renders into the GLView all the queued `RenderCommand` objects */
-void Renderer::render(){}
+void Renderer::render()
+{
+    dispatch_semaphore_wait(_pImpl->m_InflightSemaphore, DISPATCH_TIME_FOREVER);
+
+#if 1
+    _pImpl->commandBuffer = [_pImpl->m_CommandQueue commandBuffer];
+    auto commandBuffer = _pImpl->commandBuffer;
+#else
+    auto commandBuffer = [_pImpl->m_CommandQueue commandBuffer];
+#endif
+    
+    //Uncomment this once everything is rendered by new renderer
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    //TODO: setup camera or MVP
+    _isRendering = true;
+    
+    isdraw = false;
+    
+#if 0
+    auto openGLView = Director::getInstance()->getOpenGLView();
+    CCMetalView* metalView = (__bridge CCMetalView*)openGLView->getEAGLView();
+    MTLRenderPassDescriptor *renderPassDescriptor = metalView.renderPassDescriptor;
+    assert(renderPassDescriptor);
+#else
+    auto openGLView = Director::getInstance()->getOpenGLView();
+    CCMetalView* metalView = (CCMetalView*)openGLView->getEAGLView();
+#endif
+    {
+        if (_glViewAssigned)
+        {
+#if 0
+            _pImpl->m_RenderEncorder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+#endif
+
+            //Process render commands
+            //1. Sort render commands based on ID
+            for (auto &renderqueue : _renderGroups)
+            {
+                renderqueue.sort();
+            }
+            visitRenderQueue(_renderGroups[0]);
+            flush();
+
+            //Process render commands
+            //draw transparent objects here, do not batch for transparent objects
+            if (0 < _transparentRenderGroups.size())
+            {
+#if defined(_NEED_PORT)
+                _transparentRenderGroups.sort();
+                glEnable(GL_DEPTH_TEST);
+                visitTransparentRenderQueue(_transparentRenderGroups);
+                glDisable(GL_DEPTH_TEST);
+#else//_NEED_PORT
+                CC_ASSERT(false);
+#endif//_NEED_PORT
+            }
+            
+            //Dispatch the command buffer
+            __block dispatch_semaphore_t dispatchSemaphore = _pImpl->m_InflightSemaphore;
+
+            [commandBuffer addCompletedHandler:^(id <MTLCommandBuffer> cmdb){
+                dispatch_semaphore_signal(dispatchSemaphore);
+            }];
+
+            // Present and commit the command buffer
+            [commandBuffer presentDrawable:metalView.currentDrawable];
+            [commandBuffer commit];
+        }
+    }
+    clean();
+
+    if(!isdraw)
+    {
+        // release the semaphore to keep things synchronized even if we couldnt render
+        dispatch_semaphore_signal(_pImpl->m_InflightSemaphore);
+    }
+    _isRendering = false;
+}
 
 /** Cleans all `RenderCommand`s in the queue */
-void Renderer::clean(){}
+void Renderer::clean()
+{
+    // Clear render group
+    for (size_t j = 0 ; j < _renderGroups.size(); j++)
+    {
+        //commands are owned by nodes
+        // for (const auto &cmd : _renderGroups[j])
+        // {
+        //     cmd->releaseToCommandPool();
+        // }
+        _renderGroups[j].clear();
+    }
+    
+    // Clear batch commands
+    _batchedCommands.clear();
+    _batchQuadCommands.clear();
+    _filledVertex = 0;
+    _filledIndex = 0;
+    _numberQuads = 0;
+    _lastMaterialID = 0;
+    _lastBatchedMeshCommand = nullptr;
+    
+    _transparentRenderGroups.clear();
+}
+
+void Renderer::fillQuads(const QuadCommand *cmd)
+{
+    memcpy(_quadVerts + _numberQuads * 4, cmd->getQuads(), sizeof(V3F_C4B_T2F_Quad) * cmd->getQuadCount());
+
+    const Mat4& modelView = cmd->getModelView();
+    
+    for(ssize_t i=0; i< cmd->getQuadCount() * 4; ++i)
+    {
+        V3F_C4B_T2F *q = &_quadVerts[i + _numberQuads * 4];
+        Vec3 *vec1 = (Vec3*)&q->vertices;
+        modelView.transformPoint(vec1);
+    }
+    
+    _numberQuads += cmd->getQuadCount();
+}
+
+void Renderer::drawBatchedQuads()
+{
+    //TODO: we can improve the draw performance by insert material switching command before hand.
+    
+    int indexToDraw = 0;
+    int startIndex = 0;
+    
+    //Upload buffer to VBO
+    if(_numberQuads <= 0 || _batchQuadCommands.empty())
+    {
+        return;
+    }
+    
+#if CC_PLATFORM_IOS_METAL
+    auto vertexBufferSize = sizeof(V3F_C4B_T2F) * _numberQuads * 4;
+    auto indexBufferSize = INDEX_VBO_SIZE * sizeof(GLushort);
+    memcpy([_pImpl->_vertexBuffer contents], _quadVerts, vertexBufferSize);
+    memcpy([_pImpl->_indexBuffer contents], _quadIndices, indexBufferSize);
+    
+    auto openGLView = Director::getInstance()->getOpenGLView();
+    CCMetalView* metalView = (CCMetalView*)openGLView->getEAGLView();
+    MTLRenderPassDescriptor *renderPassDescriptor = metalView.renderPassDescriptor;
+    auto renderEncoder = [_pImpl->commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+
+    [renderEncoder pushDebugGroup:@"quad"];
+    [renderEncoder setVertexBuffer:_pImpl->_vertexBuffer
+                            offset:0
+                           atIndex:0 ];
+    
+    
+    Mat4 matrixP = Director::getInstance()->getMatrix(MATRIX_STACK_TYPE::MATRIX_STACK_PROJECTION);
+    GLKMatrix4 pmat;
+    for(int k=0; k<16; k++) {
+        pmat.m[k] = matrixP.m[k];
+    }
+    memcpy([_pImpl->_matrixBuffer contents], &pmat, sizeof(GLKMatrix4));
+    [renderEncoder setVertexBuffer:_pImpl->_matrixBuffer offset: 0 atIndex: 1];
+
+
+    isdraw = true;
+    
+#else//CC_PLATFORM_IOS_METAL
+    {
+#define kQuadSize sizeof(_verts[0])
+        glBindBuffer(GL_ARRAY_BUFFER, _quadbuffersVBO[0]);
+        
+        glBufferData(GL_ARRAY_BUFFER, sizeof(_quadVerts[0]) * _numberQuads * 4 , _quadVerts, GL_DYNAMIC_DRAW);
+        
+        GL::enableVertexAttribs(GL::VERTEX_ATTRIB_FLAG_POS_COLOR_TEX);
+        
+        // vertices
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, kQuadSize, (GLvoid*) offsetof(V3F_C4B_T2F, vertices));
+        
+        // colors
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, kQuadSize, (GLvoid*) offsetof(V3F_C4B_T2F, colors));
+        
+        // tex coords
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_TEX_COORD, 2, GL_FLOAT, GL_FALSE, kQuadSize, (GLvoid*) offsetof(V3F_C4B_T2F, texCoords));
+        
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _quadbuffersVBO[1]);
+    }
+#endif//CC_PLATFORM_IOS_METAL
+    
+    //Start drawing verties in batch
+    for(const auto& cmd : _batchQuadCommands)
+    {
+        auto newMaterialID = cmd->getMaterialID();
+        if(_lastMaterialID != newMaterialID || newMaterialID == MATERIAL_ID_DO_NOT_BATCH)
+        {
+            //Draw quads
+            if(indexToDraw > 0)
+            {
+#if CC_PLATFORM_IOS_METAL
+                // tell the render context we want to draw our primitives
+                [renderEncoder drawIndexedPrimitives:MTLPrimitiveType::MTLPrimitiveTypeTriangle
+                                          indexCount:indexToDraw
+                                           indexType:MTLIndexTypeUInt16
+                                         indexBuffer:_pImpl->_indexBuffer
+                                   indexBufferOffset:startIndex
+                 ];
+#else//CC_PLATFORM_IOS_METAL
+                glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
+                _drawnBatches++;
+                _drawnVertices += indexToDraw;
+                
+                startIndex += indexToDraw;
+                indexToDraw = 0;
+            }
+            
+#if CC_PLATFORM_IOS_METAL
+            auto programState = cmd->getGLProgramState();
+            auto program = programState->getGLProgram();
+            auto renderPipelineState = (id<MTLRenderPipelineState>)(program->getRenderPipelineState());
+            assert(renderPipelineState!=nil);
+            [renderEncoder setRenderPipelineState:renderPipelineState];
+            
+            #if 0
+            auto renderPipelineDepthState = (__bridge id<MTLDepthStencilState>)(program->getRenderPipelineDepthState());
+            [renderEncoder setDepthStencilState:renderPipelineDepthState];
+            #endif
+
+            auto texture = Texture2D::retriveTexture( cmd->getTextureID() );
+            if( texture ) {
+                auto mtlTex = (id<MTLTexture>)texture->getMTLTexture();
+                [renderEncoder setFragmentTexture:mtlTex
+                                          atIndex:0];
+             
+            }
+#else
+            //Use new material
+            cmd->useMaterial();
+#endif
+            _lastMaterialID = newMaterialID;
+        }
+        
+        indexToDraw += cmd->getQuadCount() * 6;
+    }
+    
+    //Draw any remaining quad
+    if(indexToDraw > 0)
+    {
+#if CC_PLATFORM_IOS_METAL
+        // tell the render context we want to draw our primitives
+        [renderEncoder drawIndexedPrimitives:MTLPrimitiveType::MTLPrimitiveTypeTriangle
+                                  indexCount:indexToDraw
+                                   indexType:MTLIndexTypeUInt16
+                                 indexBuffer:_pImpl->_indexBuffer
+                           indexBufferOffset:startIndex
+         ];
+#else//CC_PLATFORM_IOS_METAL
+        glDrawElements(GL_TRIANGLES, (GLsizei) indexToDraw, GL_UNSIGNED_SHORT, (GLvoid*) (startIndex*sizeof(_indices[0])) );
+#endif//CC_PLATFORM_IOS_METAL
+        _drawnBatches++;
+        _drawnVertices += indexToDraw;
+    }
+    
+#if CC_PLATFORM_IOS_METAL
+    [renderEncoder endEncoding];
+    [renderEncoder popDebugGroup];
+#else//CC_PLATFORM_IOS_METAL
+    if (Configuration::getInstance()->supportsShareableVAO())
+    {
+        //Unbind VAO
+        GL::bindVAO(0);
+    }
+    else
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+#endif//CC_PLATFORM_IOS_METAL
+    
+    _batchQuadCommands.clear();
+    _numberQuads = 0;
+}
+
+void Renderer::flush()
+{
+    flush2D();
+    flush3D();
+}
+
+void Renderer::flush2D()
+{
+    drawBatchedQuads();
+    _lastMaterialID = 0;
+#if defined(_NEED_PORT)
+    drawBatchedTriangles();
+    _lastMaterialID = 0;
+#else//_NEED_PORT
+#endif//_NEED_PORT
+}
+
+void Renderer::flush3D()
+{
+    if (_lastBatchedMeshCommand)
+    {
+        _lastBatchedMeshCommand->postBatchDraw();
+        _lastBatchedMeshCommand = nullptr;
+    }
+}
 
 /** returns whether or not a rectangle is visible or not */
-bool Renderer::checkVisibility(const Mat4& transform, const Size& size){return false;}
+bool Renderer::checkVisibility(const Mat4& transform, const Size& size)
+{
+    return true;
+}
 
+//===========================================================================================
 #else//CC_PLATFORM_IOS_METAL
+//===========================================================================================
 
 // helper
 static bool compareRenderCommand(RenderCommand* a, RenderCommand* b)

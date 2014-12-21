@@ -113,6 +113,13 @@ bool GLProgramCache::init()
 
 void GLProgramCache::loadDefaultGLPrograms()
 {
+#if CC_PLATFORM_IOS_METAL
+    // Position Texture Color without MVP shader
+    GLProgram *p = new (std::nothrow) GLProgram();
+    loadDefaultGLProgram(p, kShaderType_PositionTextureColor_noMVP);
+    _programs.insert( std::make_pair( GLProgram::SHADER_NAME_POSITION_TEXTURE_COLOR_NO_MVP, p ) );
+    
+#else//CC_PLATFORM_IOS_METAL
     // Position Texture Color shader
     GLProgram *p = new (std::nothrow) GLProgram();
     loadDefaultGLProgram(p, kShaderType_PositionTextureColor);
@@ -220,30 +227,36 @@ void GLProgramCache::loadDefaultGLPrograms()
     p = new GLProgram();
     loadDefaultGLProgram(p, kShaderType_3DSkinPositionNormalTex);
     _programs.insert(std::make_pair(GLProgram::SHADER_3D_SKINPOSITION_NORMAL_TEXTURE, p));
+#endif//CC_PLATFORM_IOS_METAL
 }
 
 void GLProgramCache::reloadDefaultGLPrograms()
 {
     // reset all programs and reload them
-    
+#if CC_PLATFORM_IOS_METAL
+    // Position Texture Color without MVP shader
+    GLProgram *p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_COLOR_NO_MVP);
+    p->reset();
+    loadDefaultGLProgram(p, kShaderType_PositionTextureColor_noMVP);
+#else//CC_PLATFORM_IOS_METAL
     // Position Texture Color shader
-    GLProgram *p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_COLOR);    
+    GLProgram *p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_COLOR);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_PositionTextureColor);
-
+    
     // Position Texture Color without MVP shader
     p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_COLOR_NO_MVP);
-    p->reset();    
+    p->reset();
     loadDefaultGLProgram(p, kShaderType_PositionTextureColor_noMVP);
-
+    
     // Position Texture Color alpha test
     p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_ALPHA_TEST);
-    p->reset();    
+    p->reset();
     loadDefaultGLProgram(p, kShaderType_PositionTextureColorAlphaTest);
     
     // Position Texture Color alpha test
     p = getGLProgram(GLProgram::SHADER_NAME_POSITION_TEXTURE_ALPHA_TEST_NO_MV);
-    p->reset();    
+    p->reset();
     loadDefaultGLProgram(p, kShaderType_PositionTextureColorAlphaTestNoMV);
     //
     // Position, Color shader
@@ -257,7 +270,7 @@ void GLProgramCache::reloadDefaultGLPrograms()
     //
     p = getGLProgram(GLProgram::SHADER_NAME_POSITION_COLOR_NO_MVP);
     loadDefaultGLProgram(p, kShaderType_PositionColor_noMVP);
-
+    
     //
     // Position Texture shader
     //
@@ -292,19 +305,19 @@ void GLProgramCache::reloadDefaultGLPrograms()
     p = getGLProgram(GLProgram::SHADER_NAME_POSITION_LENGTH_TEXTURE_COLOR);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_PositionLengthTexureColor);
-
+    
     p = getGLProgram(GLProgram::SHADER_NAME_LABEL_DISTANCEFIELD_NORMAL);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_LabelDistanceFieldNormal);
-
+    
     p = getGLProgram(GLProgram::SHADER_NAME_LABEL_DISTANCEFIELD_GLOW);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_LabelDistanceFieldGlow);
-
+    
     p = getGLProgram(GLProgram::SHADER_NAME_LABEL_NORMAL);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_LabelNormal);
-
+    
     p = getGLProgram(GLProgram::SHADER_NAME_LABEL_OUTLINE);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_LabelOutline);
@@ -324,18 +337,31 @@ void GLProgramCache::reloadDefaultGLPrograms()
     p = getGLProgram(GLProgram::SHADER_3D_POSITION_NORMAL);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_3DPositionNormal);
-
+    
     p = getGLProgram(GLProgram::SHADER_3D_POSITION_NORMAL_TEXTURE);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_3DPositionNormalTex);
-
+    
     p = getGLProgram(GLProgram::SHADER_3D_SKINPOSITION_NORMAL_TEXTURE);
     p->reset();
     loadDefaultGLProgram(p, kShaderType_3DSkinPositionNormalTex);
+#endif//CC_PLATFORM_IOS_METAL
+    
 }
 
 void GLProgramCache::loadDefaultGLProgram(GLProgram *p, int type)
 {
+#if CC_PLATFORM_IOS_METAL
+    switch (type) {
+        case kShaderType_PositionTextureColor_noMVP:
+            p->initWithName("texturedQuadVertex", "texturedQuadFragment");
+            break;
+        default:
+            CCLOG("not implement %d", type);
+            //CC_ASSERT(false);
+            break;
+    }
+#else//CC_PLATFORM_IOS_METAL
     switch (type) {
         case kShaderType_PositionTextureColor:
             p->initWithByteArrays(ccPositionTextureColor_vert, ccPositionTextureColor_frag);
@@ -415,6 +441,7 @@ void GLProgramCache::loadDefaultGLProgram(GLProgram *p, int type)
             CCLOG("cocos2d: %s:%d, error shader type", __FUNCTION__, __LINE__);
             return;
     }
+#endif//CC_PLATFORM_IOS_METAL
     
     p->link();
     p->updateUniforms();

@@ -43,14 +43,14 @@ static AppDelegate s_sharedApplication;
     // Add the view controller's view to the window and display.
     window = [[UIWindow alloc] initWithFrame: [[UIScreen mainScreen] bounds]];
     CCEAGLView *eaglView = [CCEAGLView viewWithFrame: [window bounds]
-                                        pixelFormat: kEAGLColorFormatRGBA8
-                                        depthFormat: GL_DEPTH_COMPONENT16
-                                 preserveBackbuffer: NO
-                                                                                 sharegroup:nil
-                                                                          multiSampling:NO
-                                                                    numberOfSamples:0];
+                                         pixelFormat: kEAGLColorFormatRGBA8
+                                         depthFormat: GL_DEPTH_COMPONENT16
+                                  preserveBackbuffer: NO
+                                          sharegroup:nil
+                                       multiSampling:NO
+                                     numberOfSamples:0];
     
-    // Use RootViewController manage CCEAGLView 
+    // Use RootViewController manage CCEAGLView
     viewController = [[RootViewController alloc] initWithNibName:nil bundle:nil];
     viewController.wantsFullScreenLayout = YES;
     viewController.view = eaglView;

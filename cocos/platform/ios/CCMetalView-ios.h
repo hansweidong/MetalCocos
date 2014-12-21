@@ -5,6 +5,8 @@
 
 #import <UIKit/UIKit.h>
 #import <CoreFoundation/CoreFoundation.h>
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
 
 //CLASS INTERFACE:
 
@@ -18,10 +20,10 @@
     NSString                *pixelformat_;
     GLuint                    depthFormat_;
     BOOL                    preserveBackbuffer_;
-
+    
     CGSize                    size_;
     BOOL                    discardFramebufferSupported_;
-
+    
     //fsaa addition
     BOOL                    multisampling_;
     unsigned int               requestedSamples_;
@@ -32,9 +34,23 @@
     CGRect                  originalRect_;
     NSNotification*         keyboardShowNotification_;
     BOOL                    isKeyboardShown_;
+    
+    id <MTLLibrary>            m_ShaderLibrary;
 }
 
-@property(nonatomic) id<MTLDevice> device;
+//----- for Metal ------//
+@property(nonatomic, readonly) id<MTLDevice> device;
+// the current drawable created within the view's CAMetalLayer
+@property (nonatomic, readonly) id <CAMetalDrawable> currentDrawable;
+
+// The current framebuffer can be read by delegate during -[MetalViewDelegate render:]
+// This call may block until the framebuffer is available.
+@property (nonatomic, readonly) MTLRenderPassDescriptor *renderPassDescriptor;
+@property (nonatomic) MTLPixelFormat depthPixelFormat;
+@property (nonatomic) MTLPixelFormat stencilPixelFormat;
+@property (nonatomic) NSUInteger     sampleCount;
+//----------------------//
+
 @property(nonatomic, readonly) UITextPosition *beginningOfDocument;
 @property(nonatomic, readonly) UITextPosition *endOfDocument;
 @property(nonatomic, assign) id<UITextInputDelegate> inputDelegate;

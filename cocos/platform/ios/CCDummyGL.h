@@ -1,3 +1,5 @@
+#ifndef __CCDUMMY_GL_H__
+#define __CCDUMMY_GL_H__
 
 #include "platform/CCPlatformConfig.h"
 #if CC_TARGET_PLATFORM == CC_PLATFORM_IOS
@@ -45,3 +47,5 @@ typedef intptr_t GLsizeiptr;
 
 #endif//CC_PLATFORM_IOS_METAL
 #endif // CC_PLATFORM_IOS
+
+#endif// __CCDUMMY_GL_H__

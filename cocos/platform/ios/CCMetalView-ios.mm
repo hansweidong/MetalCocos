@@ -88,15 +88,27 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 @end
 
 @implementation CCMetalView
+{
+    __weak CAMetalLayer *_metalLayer;
+    BOOL _layerSizeDidUpdate;
+    
+    id <MTLTexture>  _depthTex;
+    id <MTLTexture>  _stencilTex;
+    id <MTLTexture>  _msaaTex;
+}
 
 @synthesize surfaceSize=size_;
 @synthesize pixelFormat=pixelformat_, depthFormat=depthFormat_;
 @synthesize multiSampling=multiSampling_;
 @synthesize isKeyboardShown=isKeyboardShown_;
 @synthesize keyboardShowNotification = keyboardShowNotification_;
+@synthesize currentDrawable      = _currentDrawable;
+@synthesize renderPassDescriptor = _renderPassDescriptor;
+
 + (Class) layerClass
 {
-    return [CAEAGLLayer class];
+//    return [CAEAGLLayer class];
+    return [CAMetalLayer class];
 }
 
 + (id) viewWithFrame:(CGRect)frame
@@ -140,22 +152,20 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
         requestedSamples_ = nSamples;
         preserveBackbuffer_ = retained;
         markedText_ = nil;
+        if ([self respondsToSelector:@selector(setContentScaleFactor:)])
+        {
+            self.contentScaleFactor = [[UIScreen mainScreen] scale];
+        }
+        
         if( ! [self setupSurfaceWithSharegroup:nil] ) {
             [self release];
             return nil;
         }
 
-
         originalRect_ = self.frame;
         self.keyboardShowNotification = nil;
 		
-		if ([self respondsToSelector:@selector(setContentScaleFactor:)])
-		{
-			self.contentScaleFactor = [[UIScreen mainScreen] scale];
-		}
-        
-        self.device = MTLCreateSystemDefaultDevice();
-        cocos2d::Director::getInstance()->setMetalDevice((MTLDevice*)self.device);
+        self.opaque = YES;
     }
         
     return self;
@@ -163,10 +173,11 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 -(id) initWithCoder:(NSCoder *)aDecoder
 {
+#if defined(_NEED_PORT)
     if( (self = [super initWithCoder:aDecoder]) ) {
         CAEAGLLayer*            eaglLayer = (CAEAGLLayer*)[self layer];
         
-       // pixelformat_ = kEAGLColorFormatRGB565;
+        // pixelformat_ = kEAGLColorFormatRGB565;
         depthFormat_ = 0; // GL_DEPTH_COMPONENT24_OES;
         multiSampling_= NO;
         requestedSamples_ = 0;
@@ -178,9 +189,166 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
             return nil;
         }
     }
-    
+#else//_NEED_PORT
+    CC_ASSERT(false);
+#endif//_NEED_PORT
     return self;
 }
+
+- (void)setupRenderPassDescriptorForTexture:(id <MTLTexture>) texture
+{
+    if(_renderPassDescriptor) {
+        return;
+    }
+    // create lazily
+    if (_renderPassDescriptor == nil) {
+        _renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+    }
+    
+    // create a color attachment every frame since we have to recreate the texture every frame
+    MTLRenderPassColorAttachmentDescriptor *colorAttachment = _renderPassDescriptor.colorAttachments[0];
+    colorAttachment.texture = texture;
+    
+    // make sure to clear every frame for best performance
+    colorAttachment.loadAction = MTLLoadActionClear;
+//    colorAttachment.clearColor = MTLClearColorMake(0.65f, 0.65f, 0.65f, 1.0f);
+#if 0
+    static int framecounter = 0;
+    framecounter ++ ;
+    switch(framecounter%3)
+    {
+        case 0:
+            colorAttachment.clearColor = MTLClearColorMake(0.0f, 0.0f, 1.0f, 1.0f);
+            break;
+        case 1:
+            colorAttachment.clearColor = MTLClearColorMake(0.0f, 1.0f, 0.0f, 1.0f);
+            break;
+        case 2:
+            colorAttachment.clearColor = MTLClearColorMake(1.0f, 0.0f, 0.0f, 1.0f);
+            break;
+    }
+#else
+    colorAttachment.clearColor = MTLClearColorMake(0.0f, 0.0f, 1.0f, 1.0f);
+#endif
+
+    // if sample count is greater than 1, render into using MSAA, then resolve into our color texture
+    if(_sampleCount > 1)
+    {
+        BOOL doUpdate =     ( _msaaTex.width       != texture.width  )
+        ||  ( _msaaTex.height      != texture.height )
+        ||  ( _msaaTex.sampleCount != _sampleCount   );
+        
+        if(!_msaaTex || (_msaaTex && doUpdate))
+        {
+            MTLTextureDescriptor* desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat: MTLPixelFormatBGRA8Unorm
+                                                                                            width: texture.width
+                                                                                           height: texture.height
+                                                                                        mipmapped: NO];
+            desc.textureType = MTLTextureType2DMultisample;
+            
+            // sample count was specified to the view by the renderer.
+            // this must match the sample count given to any pipeline state using this render pass descriptor
+            desc.sampleCount = _sampleCount;
+            
+            _msaaTex = [_device newTextureWithDescriptor: desc];
+        }
+        
+        // When multisampling, perform rendering to _msaaTex, then resolve
+        // to 'texture' at the end of the scene
+        colorAttachment.texture = _msaaTex;
+        colorAttachment.resolveTexture = texture;
+        
+        // set store action to resolve in this case
+        colorAttachment.storeAction = MTLStoreActionMultisampleResolve;
+    }
+    else
+    {
+        // store only attachments that will be presented to the screen, as in this case
+        colorAttachment.storeAction = MTLStoreActionStore;
+    } // color0
+    
+    // Now create the depth and stencil attachment
+    #if 0
+    if(_depthPixelFormat != MTLPixelFormatInvalid)
+    {
+        BOOL doUpdate =     ( _depthTex.width       != texture.width  )
+        ||  ( _depthTex.height      != texture.height )
+        ||  ( _depthTex.sampleCount != _sampleCount   );
+        
+        if(!_depthTex || doUpdate)
+        {
+            //  If we need a depth texture and don't have one, or if the depth texture we have is the wrong size
+            //  Then allocate one of the proper size
+            MTLTextureDescriptor* desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat: _depthPixelFormat
+                                                                                            width: texture.width
+                                                                                           height: texture.height
+                                                                                        mipmapped: NO];
+            
+            desc.textureType = (_sampleCount > 1) ? MTLTextureType2DMultisample : MTLTextureType2D;
+            desc.sampleCount = _sampleCount;
+            
+            _depthTex = [_device newTextureWithDescriptor: desc];
+            
+            MTLRenderPassDepthAttachmentDescriptor *depthAttachment = _renderPassDescriptor.depthAttachment;
+            depthAttachment.texture = _depthTex;
+            depthAttachment.loadAction = MTLLoadActionClear;
+            depthAttachment.storeAction = MTLStoreActionDontCare;
+            depthAttachment.clearDepth = 1.0;
+        }
+    } // depth
+    
+    if(_stencilPixelFormat != MTLPixelFormatInvalid)
+    {
+        BOOL doUpdate  =    ( _stencilTex.width       != texture.width  )
+        ||  ( _stencilTex.height      != texture.height )
+        ||  ( _stencilTex.sampleCount != _sampleCount   );
+        
+        if(!_stencilTex || doUpdate)
+        {
+            //  If we need a stencil texture and don't have one, or if the depth texture we have is the wrong size
+            //  Then allocate one of the proper size
+            MTLTextureDescriptor* desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat: _stencilPixelFormat
+                                                                                            width: texture.width
+                                                                                           height: texture.height
+                                                                                        mipmapped: NO];
+            
+            desc.textureType = (_sampleCount > 1) ? MTLTextureType2DMultisample : MTLTextureType2D;
+            desc.sampleCount = _sampleCount;
+            
+            _stencilTex = [_device newTextureWithDescriptor: desc];
+            
+            MTLRenderPassStencilAttachmentDescriptor* stencilAttachment = _renderPassDescriptor.stencilAttachment;
+            stencilAttachment.texture = _stencilTex;
+            stencilAttachment.loadAction = MTLLoadActionClear;
+            stencilAttachment.storeAction = MTLStoreActionDontCare;
+            stencilAttachment.clearStencil = 0;
+        }
+    } //stencil
+    #endif
+}
+
+- (MTLRenderPassDescriptor *)renderPassDescriptor
+{
+    id <CAMetalDrawable> drawable = self.currentDrawable;
+    if(!drawable)
+    {
+        NSLog(@">> ERROR: Failed to get a drawable!");
+        _renderPassDescriptor = nil;
+    }
+    else
+    {
+       [self setupRenderPassDescriptorForTexture: drawable.texture];
+    }
+    
+    return _renderPassDescriptor;
+}
+
+- (id <CAMetalDrawable>)currentDrawable {
+    while (!_currentDrawable) _currentDrawable = [_metalLayer nextDrawable];
+    return _currentDrawable;
+}
+
+
 
 - (void)didMoveToWindow;
 {
@@ -198,6 +366,8 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(onUIKeyboardNotification:)
                                                  name:UIKeyboardDidHideNotification object:nil];
+    
+//    self.contentScaleFactor = self.window.screen.nativeScale;
 }
 
 -(int) getWidth
@@ -215,9 +385,8 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 -(BOOL) setupSurfaceWithSharegroup:(EAGLSharegroup*)sharegroup
 {
-    CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
-    
 #if defined(NEED_PORT)
+    CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
     eaglLayer.opaque = YES;
     eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                     [NSNumber numberWithBool:preserveBackbuffer_], kEAGLDrawablePropertyRetainedBacking,
@@ -235,6 +404,49 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     
     context_ = [renderer_ context];
 #else//NEED_PORT
+    
+    self.opaque          = YES;
+    self.backgroundColor = nil;
+    
+    _metalLayer = (CAMetalLayer *)self.layer;
+    
+    _device = MTLCreateSystemDefaultDevice();
+    cocos2d::Director::getInstance()->setMetalDevice((MTLDevice*)self.device);
+    
+    _metalLayer.device          = _device;
+    _metalLayer.pixelFormat     = MTLPixelFormatBGRA8Unorm;
+    
+    // this is the default but if we wanted to perform compute on the final rendering layer we could set this to no
+    _metalLayer.framebufferOnly = YES;
+    
+    m_ShaderLibrary = [_device newDefaultLibrary];
+    if(!m_ShaderLibrary)
+    {
+        NSLog(@">> ERROR: Failed creating a default shader library!");
+        
+        // assert here becuase if the shader libary isn't loading,
+        // then we shouldn't contiue
+        assert(0);
+    } // if
+    cocos2d::Director::getInstance()->setMetalLibrary((MTLLibrary*)m_ShaderLibrary);
+
+    {
+#if 1
+        CGSize drawableSize = self.bounds.size;
+        drawableSize.width  *= self.contentScaleFactor;
+        drawableSize.height *= self.contentScaleFactor;
+    
+        _metalLayer.drawableSize = drawableSize;
+#else
+//        const float ContentScale = [UIScreen mainScreen].scale;
+//        const CGSize Size = self.view.bounds.size;
+//        _metalLayer.drawableSize = CGSizeMake(2048.0f, 1536.0f);
+#endif
+    }
+    
+    _depthPixelFormat = MTLPixelFormatDepth32Float;
+    _sampleCount = 1;
+
 #endif//NEED_PORT
     #if GL_EXT_discard_framebuffer == 1
         discardFramebufferSupported_ = YES;
@@ -272,7 +484,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     cocos2d::Size size;
     size.width = size_.width;
     size.height = size_.height;
-    //cocos2d::Director::getInstance()->reshapeProjection(size);
+//    cocos2d::Director::getInstance()->reshapeProjection(size);
 
     // Avoid flicker. Issue #350
     //[director performSelectorOnMainThread:@selector(drawScene) withObject:nil waitUntilDone:YES];
@@ -281,6 +493,10 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 - (void) swapBuffers
 {
+    // do not retain current drawable beyond the frame.
+    // There should be no strong references to this object outside of this view class
+    _renderPassDescriptor = nil;
+    _currentDrawable    = nil;
 }
 
 - (unsigned int) convertPixelFormat:(NSString*) pixelFormat
@@ -486,7 +702,6 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
 
 #pragma mark UITextInput - properties
 
-@synthesize device;
 @synthesize beginningOfDocument;
 @synthesize endOfDocument;
 @synthesize inputDelegate;

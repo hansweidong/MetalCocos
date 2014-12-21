@@ -40,6 +40,11 @@ class MTLTexture;
 */
 class CC_DLL Texture2D : public Ref
 {
+    MTLTexture*  _texture;
+public:
+    static Texture2D* retriveTexture(GLuint name);
+    MTLTexture* getMTLTexture(void) { return _texture; }
+    
 public:
     /** @typedef Texture2D::PixelFormat
      Possible texture pixel formats
@@ -410,10 +415,6 @@ protected:
     static const PixelFormatInfoMap _pixelFormatInfoTables;
     
     bool _antialiasEnabled;
-    
-    //Metalのためのプロパティ
-protected:
-    MTLTexture*  _texture;
 };
 
 

@@ -69,7 +69,7 @@ GL_API void           GL_APIENTRY glGetAttachedShaders (GLuint program, GLsizei 
 GL_API int            GL_APIENTRY glGetAttribLocation (GLuint program, const GLchar* name)  {return -1;}
 GL_API void           GL_APIENTRY glGetBooleanv (GLenum pname, GLboolean* params){}
 GL_API void           GL_APIENTRY glGetBufferParameteriv (GLenum target, GLenum pname, GLint* params){}
-GL_API GLenum         GL_APIENTRY glGetError (void){return -1;}
+GL_API GLenum         GL_APIENTRY glGetError (void){return 0;}
 GL_API void           GL_APIENTRY glGetFloatv (GLenum pname, GLfloat* params){}
 GL_API void           GL_APIENTRY glGetFramebufferAttachmentParameteriv (GLenum target, GLenum attachment, GLenum pname, GLint* params)  {}
 GL_API void           GL_APIENTRY glGetIntegerv (GLenum pname, GLint* params){}

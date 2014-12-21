@@ -36,7 +36,8 @@
 NS_CC_BEGIN
 
 
-namespace {    typedef Texture2D::PixelFormatInfoMap::value_type PixelFormatInfoMapValue;
+namespace {
+    typedef Texture2D::PixelFormatInfoMap::value_type PixelFormatInfoMapValue;
     static const PixelFormatInfoMapValue TexturePixelFormatInfoTablesValue[] =
     {
         PixelFormatInfoMapValue(Texture2D::PixelFormat::BGRA8888, Texture2D::PixelFormatInfo(GL_BGRA, GL_BGRA, GL_UNSIGNED_BYTE, 32, false, true)),
@@ -87,6 +88,16 @@ namespace {    typedef Texture2D::PixelFormatInfoMap::value_type PixelFormatInfo
                                                                                                            0xFFFFFFFF, 0xFFFFFFFF, 8, true, false)),
 #endif
     };
+    
+    
+    std::unordered_map<uint32_t, Texture2D*> textureInstanceMap;
+}
+
+Texture2D* Texture2D::retriveTexture(GLuint name) {
+    if(textureInstanceMap.find(name)!=textureInstanceMap.end()){
+        return textureInstanceMap[name];
+    }
+    return nullptr;
 }
 
 //The PixpelFormat corresponding information
@@ -426,6 +437,11 @@ Texture2D::~Texture2D()
     if(_name)
     {
         GL::deleteTexture(_name);
+        
+        auto it = textureInstanceMap.find(_name);
+        if(it!=textureInstanceMap.end()) {
+            textureInstanceMap.erase(it);
+        }
     }
 }
 
@@ -434,6 +450,11 @@ void Texture2D::releaseGLTexture()
     if(_name)
     {
         GL::deleteTexture(_name);
+        
+        auto it = textureInstanceMap.find(_name);
+        if(it!=textureInstanceMap.end()) {
+            textureInstanceMap.erase(it);
+        }
     }
     _name = 0;
 }
@@ -558,9 +579,22 @@ bool Texture2D::initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, Texture2D::
                                   withBytes:data
                                 bytesPerRow:rowBytes];
     
+    static uint32_t texNameSrc = 0;
+    _name = texNameSrc++;
+
+    _contentSize = Size((float)pixelsWide, (float)pixelsHigh);
+    _pixelsWide = pixelsWide;
+    _pixelsHigh = pixelsHigh;
+    _pixelFormat = pixelFormat;
+    _maxS = 1;
+    _maxT = 1;
+
+    _hasPremultipliedAlpha = false;
+    _hasMipmaps = mipmapsNum > 1;
+
+    textureInstanceMap[_name] = this;
     return true;
 }
-
 
 
 bool Texture2D::updateWithData(const void *data,int offsetX,int offsetY,int width,int height)

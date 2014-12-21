@@ -306,7 +306,7 @@ void Director::drawScene()
     {
         showStats();
     }
-    _renderer->render();
+//    _renderer->render();
 
     _eventDispatcher->dispatchEvent(_eventAfterDraw);
 

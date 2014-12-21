@@ -38,6 +38,9 @@ THE SOFTWARE.
 #include "platform/CCGL.h"
 #include "math/CCMath.h"
 
+class MTLRenderPipelineState;
+class MTLDepthStencilState;
+
 NS_CC_BEGIN
 
 /**
@@ -77,6 +80,12 @@ struct Uniform
 class CC_DLL GLProgram : public Ref
 {
     friend class GLProgramState;
+    
+    struct Impl;
+    Impl*  _pImpl;
+public:
+    MTLRenderPipelineState* getRenderPipelineState(void);
+    MTLDepthStencilState* getRenderPipelineDepthState(void);
 
 public:
     enum
@@ -180,6 +189,8 @@ public:
     static GLProgram* createWithPrecompiledProgramByteArray(const GLchar* vShaderByteArray, const GLchar* fShaderByteArray);
     bool initWithPrecompiledProgramByteArray(const GLchar* vShaderByteArray, const GLchar* fShaderByteArray);
 #endif
+    
+    bool initWithName(const char* vertexShaderName, const char* fragmentShaderName);
 
     /** Initializes the GLProgram with a vertex and fragment with bytes array 
      * @js initWithString

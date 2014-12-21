@@ -39,6 +39,7 @@ THE SOFTWARE.
 #include "platform/CCGLView.h"
 
 class MTLDevice;
+class MTLLibrary;
 
 NS_CC_BEGIN
 
@@ -511,6 +512,10 @@ public:
     MTLDevice*  getMetalDevice(void) const { return _pMetalDevice; }
     void setMetalDevice(MTLDevice* pDevice) { _pMetalDevice = pDevice; }
     MTLDevice*  _pMetalDevice;
+
+    MTLLibrary* getMetalLibrary(void) { return _pMetalLibrary; }
+    void setMetalLibrary(MTLLibrary* lib) {_pMetalLibrary = lib; }
+    MTLLibrary* _pMetalLibrary;
 };
 
 /** 

@@ -43,7 +43,34 @@ THE SOFTWARE.
 #include "CCPrecompiledShaders.h"
 #endif
 
+#if CC_PLATFORM_IOS_METAL
+#import <Metal/Metal.h>
+#else//CC_PLATFORM_IOS_METAL
+#endif//CC_PLATFORM_IOS_METAL
+
 NS_CC_BEGIN
+
+struct GLProgram::Impl {
+#if CC_PLATFORM_IOS_METAL
+    Impl(void)
+    {
+        m_PipelineState = nil;
+        m_PipelineDepthState = nil;
+    }
+    id <MTLRenderPipelineState>     m_PipelineState;
+    id <MTLDepthStencilState>       m_PipelineDepthState;
+#else//CC_PLATFORM_IOS_METAL
+#endif//CC_PLATFORM_IOS_METAL
+};
+
+MTLRenderPipelineState* GLProgram::getRenderPipelineState(void) {
+    return (__bridge MTLRenderPipelineState*)_pImpl->m_PipelineState;
+}
+MTLDepthStencilState* GLProgram::getRenderPipelineDepthState(void) {
+    return (__bridge MTLDepthStencilState*)_pImpl->m_PipelineDepthState;
+}
+
+
 
 typedef struct _hashUniformEntry
 {
@@ -132,6 +159,26 @@ GLProgram* GLProgram::createWithFilenames(const std::string& vShaderFilename, co
     return nullptr;
 }
 
+namespace {
+    GLuint g_programIdHead = UINT32_MAX;
+    std::unordered_map<GLuint, GLProgram*> _programMap;
+    
+    GLuint RegisterProgramMap(GLProgram* program) {
+        auto pid = g_programIdHead;
+        _programMap[pid] = program;
+        g_programIdHead -- ;
+        return pid;
+    }
+    void DeletePerogramMap(GLuint pid) {
+        auto itr = _programMap.find(pid);
+        if( itr==_programMap.end() ) {
+            CCLOG(">> ERROR: cannot find proguram from map. %d", pid);
+            return;
+        }
+        _programMap.erase(itr);
+    }
+}
+
 GLProgram::GLProgram()
 : _program(0)
 , _vertShader(0)
@@ -140,6 +187,7 @@ GLProgram::GLProgram()
 , _flags()
 {
     memset(_builtInUniforms, 0, sizeof(_builtInUniforms));
+    _pImpl = new Impl;
 }
 
 GLProgram::~GLProgram()
@@ -160,7 +208,11 @@ GLProgram::~GLProgram()
 
     if (_program) 
     {
+#if CC_PLATFORM_IOS_METAL
+        DeletePerogramMap(_program);
+#else
         GL::deleteProgram(_program);
+#endif
     }
 
     tHashUniformEntry *current_element, *tmp;
@@ -172,6 +224,72 @@ GLProgram::~GLProgram()
         free(current_element->value);
         free(current_element);
     }
+}
+
+bool GLProgram::initWithName(const char* vertexShaderName, const char* fragmentShaderName) {
+#if CC_PLATFORM_IOS_METAL
+    auto nsVSName = [[NSString alloc] initWithUTF8String:vertexShaderName];
+    auto nsFSName = [[NSString alloc] initWithUTF8String:fragmentShaderName];
+    auto device = (id<MTLDevice>)Director::getInstance()->getMetalDevice();
+    auto lib = (id<MTLLibrary>)Director::getInstance()->getMetalLibrary();
+    auto vertexProgram = [lib newFunctionWithName:nsVSName];
+    if(!vertexProgram) {
+        CCLOG(">> ERROR: Couldn't load vertex function from default library");
+        return false;
+    }
+    auto fragmentProgram = [lib newFunctionWithName:nsFSName];
+    if(!fragmentProgram) {
+        CCLOG(">> ERROR: Couldn't load fragment function from default library");
+        return false;
+    }
+    
+    MTLRenderPipelineDescriptor *pQuadPipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
+//    MTLRenderPipelineDescriptor *pQuadPipelineStateDescriptor = [MTLRenderPipelineDescriptor new];
+    
+    if(!pQuadPipelineStateDescriptor)
+    {
+        CCLOG(">> ERROR: Failed creating a pipeline state descriptor!");
+        return false;
+    } // if
+
+#if 0
+    #if 1
+    pQuadPipelineStateDescriptor.depthAttachmentPixelFormat      = MTLPixelFormatInvalid;
+    #else
+    pQuadPipelineStateDescriptor.depthAttachmentPixelFormat      = MTLPixelFormatDepth32Float;
+    #endif
+    pQuadPipelineStateDescriptor.stencilAttachmentPixelFormat    = MTLPixelFormatInvalid;
+#endif
+    pQuadPipelineStateDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    
+    pQuadPipelineStateDescriptor.label = @"QuadRender";
+    pQuadPipelineStateDescriptor.sampleCount      = 1;
+    pQuadPipelineStateDescriptor.vertexFunction   = vertexProgram;
+    pQuadPipelineStateDescriptor.fragmentFunction = fragmentProgram;
+    
+    NSError *pError = nil;
+    _pImpl->m_PipelineState = [device newRenderPipelineStateWithDescriptor:pQuadPipelineStateDescriptor error:&pError];
+    if(!_pImpl->m_PipelineState)
+    {
+        NSLog(@">> ERROR: Failed acquiring pipeline state descriptor: %@", pError);
+        return false;
+    } // if
+
+#if 1
+#else
+    {
+        MTLDepthStencilDescriptor *depthStateDesc = [[MTLDepthStencilDescriptor alloc] init];
+        depthStateDesc.depthCompareFunction = MTLCompareFunctionLess;
+        depthStateDesc.depthWriteEnabled = NO;
+        _pImpl->m_PipelineDepthState = [device newDepthStencilStateWithDescriptor:depthStateDesc];
+    }
+#endif
+    
+    _program = RegisterProgramMap( this );
+    
+#else//CC_PLATFORM_IOS_METAL
+#endif//CC_PLATFORM_IOS_METAL
+    return true;
 }
 
 bool GLProgram::initWithByteArrays(const GLchar* vShaderByteArray, const GLchar* fShaderByteArray)
@@ -529,6 +647,10 @@ bool GLProgram::link()
 {
     CCASSERT(_program != 0, "Cannot link invalid program");
 
+#if CC_PLATFORM_IOS_METAL
+    return true;
+#else//CC_PLATFORM_IOS_METAL
+    
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WP8)
     if(!_hasShaderCompiler)
     {
@@ -581,6 +703,7 @@ bool GLProgram::link()
 #endif
 
     return (status == GL_TRUE);
+#endif//CC_PLATFORM_IOS_METAL
 }
 
 void GLProgram::use()

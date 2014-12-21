@@ -91,6 +91,8 @@ Whenever possible prefer to use `QuadCommand` objects since the renderer will au
  */
 class CC_DLL Renderer
 {
+    struct Impl;
+    Impl*   _pImpl;
 public:
     static const int VBO_SIZE = 65536;
     static const int INDEX_VBO_SIZE = VBO_SIZE * 6 / 4;
@@ -180,8 +182,11 @@ protected:
     //for TrianglesCommand
     V3F_C4B_T2F _verts[VBO_SIZE];
     GLushort _indices[INDEX_VBO_SIZE];
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     GLuint _buffersVAO;
     GLuint _buffersVBO[2]; //0: vertex  1: indices
+#endif//CC_PLATFORM_IOS_METAL
 
     int _filledVertex;
     int _filledIndex;
@@ -189,8 +194,11 @@ protected:
     //for QuadCommand
     V3F_C4B_T2F _quadVerts[VBO_SIZE];
     GLushort _quadIndices[INDEX_VBO_SIZE];
+#if CC_PLATFORM_IOS_METAL
+#else//CC_PLATFORM_IOS_METAL
     GLuint _quadVAO;
     GLuint _quadbuffersVBO[2]; //0: vertex  1: indices
+#endif//CC_PLATFORM_IOS_METAL
     int _numberQuads;
     
     bool _glViewAssigned;
