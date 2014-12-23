@@ -46,14 +46,10 @@
 #if CC_PLATFORM_IOS_METAL
 #import <Metal/Metal.h>
 #import <simd/simd.h>
+#import <GLKit/GLKMath.h>
 #include "platform/ios/CCMetalView-ios.h"
 #else//CC_PLATFORM_IOS_METAL
 #endif//CC_PLATFORM_IOS_METAL
-
-#import <GLKit/GLKMath.h>
-typedef struct {
-    GLKVector2 position;
-} __attribute__((packed)) GLKVertexData;
 
 NS_CC_BEGIN
 
@@ -233,15 +229,7 @@ void Renderer::initGLView()
     _pImpl->m_InflightSemaphore = dispatch_semaphore_create(kInFlightCommandBuffers);
     _pImpl->_indexBuffer    =  [device newBufferWithLength:(INDEX_VBO_SIZE*sizeof(GLushort)) options:0];
     
-#if 0
-    GLKVertexData tmp[] = { { 0.0f, 0.0f }, { 100.0f, 0.0f }, { 0.0f, 100.0f }, { 100.0f, 100.0f } };
-    _pImpl->_vertexBuffer = [device newBufferWithBytes: &tmp
-                                                length: sizeof(GLKVertexData[4])
-                                               options: 0];
-#else
     _pImpl->_vertexBuffer = [device newBufferWithLength:(VBO_SIZE*sizeof(V3F_C4B_T2F)) options:0];
-#endif
-    
     _pImpl->_matrixBuffer = [device newBufferWithLength: sizeof(GLKMatrix4) options: 0];
 }
 
@@ -397,19 +385,13 @@ void Renderer::visitRenderQueue(const RenderQueue& queue)
     }
 }
 
-//static id <MTLCommandBuffer> commandBuffer = nil;
-static bool isdraw = false;
 /** Renders into the GLView all the queued `RenderCommand` objects */
 void Renderer::render()
 {
     dispatch_semaphore_wait(_pImpl->m_InflightSemaphore, DISPATCH_TIME_FOREVER);
 
-#if 1
     _pImpl->commandBuffer = [_pImpl->m_CommandQueue commandBuffer];
     auto commandBuffer = _pImpl->commandBuffer;
-#else
-    auto commandBuffer = [_pImpl->m_CommandQueue commandBuffer];
-#endif
     
     //Uncomment this once everything is rendered by new renderer
     //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -417,66 +399,49 @@ void Renderer::render()
     //TODO: setup camera or MVP
     _isRendering = true;
     
-    isdraw = false;
-    
-#if 0
-    auto openGLView = Director::getInstance()->getOpenGLView();
-    CCMetalView* metalView = (__bridge CCMetalView*)openGLView->getEAGLView();
-    MTLRenderPassDescriptor *renderPassDescriptor = metalView.renderPassDescriptor;
-    assert(renderPassDescriptor);
-#else
     auto openGLView = Director::getInstance()->getOpenGLView();
     CCMetalView* metalView = (CCMetalView*)openGLView->getEAGLView();
-#endif
+    if (_glViewAssigned)
     {
-        if (_glViewAssigned)
+        //Process render commands
+        //1. Sort render commands based on ID
+        for (auto &renderqueue : _renderGroups)
         {
-#if 0
-            _pImpl->m_RenderEncorder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-#endif
-
-            //Process render commands
-            //1. Sort render commands based on ID
-            for (auto &renderqueue : _renderGroups)
-            {
-                renderqueue.sort();
-            }
-            visitRenderQueue(_renderGroups[0]);
-            flush();
-
-            //Process render commands
-            //draw transparent objects here, do not batch for transparent objects
-            if (0 < _transparentRenderGroups.size())
-            {
-#if defined(_NEED_PORT)
-                _transparentRenderGroups.sort();
-                glEnable(GL_DEPTH_TEST);
-                visitTransparentRenderQueue(_transparentRenderGroups);
-                glDisable(GL_DEPTH_TEST);
-#else//_NEED_PORT
-                CC_ASSERT(false);
-#endif//_NEED_PORT
-            }
-            
-            //Dispatch the command buffer
-            __block dispatch_semaphore_t dispatchSemaphore = _pImpl->m_InflightSemaphore;
-
-            [commandBuffer addCompletedHandler:^(id <MTLCommandBuffer> cmdb){
-                dispatch_semaphore_signal(dispatchSemaphore);
-            }];
-
-            // Present and commit the command buffer
-            [commandBuffer presentDrawable:metalView.currentDrawable];
-            [commandBuffer commit];
+            renderqueue.sort();
         }
-    }
-    clean();
+        visitRenderQueue(_renderGroups[0]);
+        flush();
 
-    if(!isdraw)
-    {
+        //Process render commands
+        //draw transparent objects here, do not batch for transparent objects
+        if (0 < _transparentRenderGroups.size())
+        {
+#if defined(_NEED_PORT)
+            _transparentRenderGroups.sort();
+            glEnable(GL_DEPTH_TEST);
+            visitTransparentRenderQueue(_transparentRenderGroups);
+            glDisable(GL_DEPTH_TEST);
+#else//_NEED_PORT
+            CC_ASSERT(false);
+#endif//_NEED_PORT
+        }
+        
+        //Dispatch the command buffer
+        __block dispatch_semaphore_t dispatchSemaphore = _pImpl->m_InflightSemaphore;
+
+        [commandBuffer addCompletedHandler:^(id <MTLCommandBuffer> cmdb){
+            dispatch_semaphore_signal(dispatchSemaphore);
+        }];
+
+        // Present and commit the command buffer
+        [commandBuffer presentDrawable:metalView.currentDrawable];
+        [commandBuffer commit];
+    }
+    else {
         // release the semaphore to keep things synchronized even if we couldnt render
         dispatch_semaphore_signal(_pImpl->m_InflightSemaphore);
     }
+    clean();
     _isRendering = false;
 }
 
@@ -561,8 +526,6 @@ void Renderer::drawBatchedQuads()
     [renderEncoder setVertexBuffer:_pImpl->_matrixBuffer offset: 0 atIndex: 1];
 
 
-    isdraw = true;
-    
 #else//CC_PLATFORM_IOS_METAL
     {
 #define kQuadSize sizeof(_verts[0])
@@ -619,17 +582,16 @@ void Renderer::drawBatchedQuads()
             assert(renderPipelineState!=nil);
             [renderEncoder setRenderPipelineState:renderPipelineState];
             
-            #if 0
-            auto renderPipelineDepthState = (__bridge id<MTLDepthStencilState>)(program->getRenderPipelineDepthState());
-            [renderEncoder setDepthStencilState:renderPipelineDepthState];
-            #endif
+            auto renderPipelineDepthState = (id<MTLDepthStencilState>)(program->getRenderPipelineDepthState());
+            if( renderPipelineDepthState ) {
+                [renderEncoder setDepthStencilState:renderPipelineDepthState];
+            }
 
             auto texture = Texture2D::retriveTexture( cmd->getTextureID() );
             if( texture ) {
                 auto mtlTex = (id<MTLTexture>)texture->getMTLTexture();
                 [renderEncoder setFragmentTexture:mtlTex
                                           atIndex:0];
-             
             }
 #else
             //Use new material

@@ -211,25 +211,8 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     
     // make sure to clear every frame for best performance
     colorAttachment.loadAction = MTLLoadActionClear;
-//    colorAttachment.clearColor = MTLClearColorMake(0.65f, 0.65f, 0.65f, 1.0f);
-#if 0
-    static int framecounter = 0;
-    framecounter ++ ;
-    switch(framecounter%3)
-    {
-        case 0:
-            colorAttachment.clearColor = MTLClearColorMake(0.0f, 0.0f, 1.0f, 1.0f);
-            break;
-        case 1:
-            colorAttachment.clearColor = MTLClearColorMake(0.0f, 1.0f, 0.0f, 1.0f);
-            break;
-        case 2:
-            colorAttachment.clearColor = MTLClearColorMake(1.0f, 0.0f, 0.0f, 1.0f);
-            break;
-    }
-#else
+    //colorAttachment.clearColor = MTLClearColorMake(0.65f, 0.65f, 0.65f, 1.0f);
     colorAttachment.clearColor = MTLClearColorMake(0.0f, 0.0f, 1.0f, 1.0f);
-#endif
 
     // if sample count is greater than 1, render into using MSAA, then resolve into our color texture
     if(_sampleCount > 1)
@@ -268,7 +251,7 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     } // color0
     
     // Now create the depth and stencil attachment
-    #if 0
+    #if 1
     if(_depthPixelFormat != MTLPixelFormatInvalid)
     {
         BOOL doUpdate =     ( _depthTex.width       != texture.width  )
@@ -431,20 +414,15 @@ Copyright (C) 2008 Apple Inc. All Rights Reserved.
     cocos2d::Director::getInstance()->setMetalLibrary((MTLLibrary*)m_ShaderLibrary);
 
     {
-#if 1
         CGSize drawableSize = self.bounds.size;
         drawableSize.width  *= self.contentScaleFactor;
         drawableSize.height *= self.contentScaleFactor;
     
         _metalLayer.drawableSize = drawableSize;
-#else
-//        const float ContentScale = [UIScreen mainScreen].scale;
-//        const CGSize Size = self.view.bounds.size;
-//        _metalLayer.drawableSize = CGSizeMake(2048.0f, 1536.0f);
-#endif
     }
     
-    _depthPixelFormat = MTLPixelFormatDepth32Float;
+//    _depthPixelFormat = MTLPixelFormatDepth32Float;
+    _depthPixelFormat = MTLPixelFormatInvalid;
     _sampleCount = 1;
 
 #endif//NEED_PORT
